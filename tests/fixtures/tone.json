@@ -1,0 +1,22 @@
+{
+  "datatype": "cf32_le",
+  "sample_rate": 1000000.0,
+  "num_samples": 65536,
+  "generator": "gpu-rf-pipeline/tools/gen_fixtures.py",
+  "seed": 1001,
+  "description": "two tones plus noise",
+  "ref_nfft": 1024,
+  "tones": [
+    {
+      "bin": 40,
+      "amplitude": 1.0,
+      "freq_hz": 39062.5
+    },
+    {
+      "bin": -300,
+      "amplitude": 0.5,
+      "freq_hz": -292968.75
+    }
+  ],
+  "noise_std": 0.05
+}

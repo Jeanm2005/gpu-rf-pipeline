@@ -1,0 +1,14 @@
+{
+  "datatype": "cf32_le",
+  "sample_rate": 1000000.0,
+  "num_samples": 16384,
+  "generator": "gpu-rf-pipeline/tools/gen_fixtures.py",
+  "seed": 2001,
+  "description": "ch1 is ch0's source delayed by true_delay_samples, independent noise",
+  "true_delay_samples": 37,
+  "delay_convention": "ch1[n] = source[n - true_delay_samples], zero-filled",
+  "source_std": 1.0,
+  "noise_std": 0.3,
+  "channel": 1,
+  "paired_with": "ch0"
+}

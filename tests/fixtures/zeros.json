@@ -1,0 +1,8 @@
+{
+  "datatype": "cf32_le",
+  "sample_rate": 1000000.0,
+  "num_samples": 4096,
+  "generator": "gpu-rf-pipeline/tools/gen_fixtures.py",
+  "seed": null,
+  "description": "all zeros"
+}

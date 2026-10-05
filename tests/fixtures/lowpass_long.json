@@ -1,0 +1,7 @@
+{
+  "datatype": "rf32_le",
+  "num_taps": 1025,
+  "generator": "gpu-rf-pipeline/tools/gen_fixtures.py",
+  "design": "scipy.signal.firwin",
+  "cutoff_fraction_of_nyquist": 0.2
+}

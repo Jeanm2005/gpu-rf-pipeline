@@ -1,0 +1,6 @@
+{
+  "datatype": "rf32_le",
+  "num_taps": 1,
+  "generator": "gpu-rf-pipeline/tools/gen_fixtures.py",
+  "design": "identity"
+}
