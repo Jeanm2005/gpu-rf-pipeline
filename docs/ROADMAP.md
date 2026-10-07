@@ -1,18 +1,181 @@
 # Roadmap
 
-Work that is out of scope for the MVP (minimum viable product). Nothing here gets code until the
-MVP in README.md is finished and measured.
+Every task from the current state of the repository to the end of the project, in the order it
+should be done. Three stages:
+
+1. **MVP** (minimum viable product): the `rfgpu` pipeline described in `README.md`.
+2. **SigFlow compiler** (`compiler/`): phases A, B, C from `compiler/README.md`.
+3. **Extensions:** streaming, channelizer, direction finding, real recordings, Jetson.
+
+Nothing in a later stage gets code until the stage before it is finished and measured.
+
+Who writes each task, following `AGENTS.md` and `compiler/AGENTS.md`:
+
+- **[J]** Jean writes it by hand (custom kernels, core compiler passes, profiling write-ups).
+  Agents explain, sketch skeletons, review, and propose tests.
+- **[A]** An agent may write it (host code, CMake, Python, tests, docs).
+- **[J+A]** Jean decides or runs it on his machine; an agent prepares or assists.
+
+## Stage 1: MVP
+
+### M0. Foundations
+
+- [x] **[A]** Project docs, repository scaffolding, `.gitignore`.
+- [x] **[A]** `tools/gen_fixtures.py`: deterministic fixtures with ground truth, plus
+      `tests/test_fixtures.py`.
+
+### M1. CPU reference
+
+The reference defines what every GPU operation must compute, so it comes before any GPU code.
+
+- [x] **[A]** `tools/reference.py`: `spectrum`, `magnitude`, `fir`, `xcorr` in NumPy/SciPy, with
+      `.cf32` / `.f32` read and write helpers and a CLI that mirrors `rfgpu`.
+- [x] **[A]** `tests/test_reference.py`: the reference checked against brute-force definitions
+      and the fixture ground truth (tone bins, stopband rejection, known delay).
+- [ ] **[J]** Read the three output conventions in the `tools/reference.py` docstring and
+      confirm or change them. The kernels have to match them exactly.
+
+### M2. Toolchain and host scaffold
+
+- [ ] **[J]** Install the CUDA Toolkit in WSL2 (`nvcc` and cuFFT). As of 2026-10-07 the driver
+      is visible (`nvidia-smi` works, RTX 5080 Laptop GPU) but `nvcc` is not installed.
+- [ ] **[A]** `CMakeLists.txt`: C++17 and CUDA, `rfgpu` target, cuFFT linked, Release and Debug.
+- [ ] **[A]** `src/check.hpp`: `CUDA_CHECK` and `CUFFT_CHECK` macros (file, line, error string).
+- [ ] **[A]** `src/io.hpp` / `src/io.cpp`: read and write `.cf32` and `.f32`, with clear errors
+      for a missing file or an odd float count.
+- [ ] **[A]** `src/main.cpp`: `rfgpu` CLI with `spectrum`, `fir`, `xcorr` subcommands and
+      `--impl` dispatch through a table, so adding a variant is one line.
+- [ ] **[A]** Timing harness: CUDA events, warm-up, at least 10 runs, mean and standard
+      deviation, host-to-device and device-to-host time reported separately from kernel time
+      (`--bench N`, machine-readable output).
+- [ ] **[A]** `.github/copilot-instructions.md` as a copy of `AGENTS.md`.
+
+### M3. Spectrum (cuFFT)
+
+- [ ] **[J+A]** `src/spectrum.cu`: batched cuFFT C2C plan over `nfft`-sized frames. Not a custom
+      kernel, so an agent may write it. Jean decides whether he wants to write it himself.
+- [ ] **[A]** `tests/test_pipeline.py`: harness that runs `rfgpu` on a fixture and compares to
+      `tools/reference.py` with `rtol` / `atol` stated in each test. Skips cleanly when the
+      binary or the GPU is missing.
+- [ ] **[A]** Spectrum tests: `tone`, `tone_odd` (partial last frame), `short` (shorter than one
+      frame), `zeros`.
+
+### M4. FIR, naive
+
+- [ ] **[A]** `src/fir.cu` host side: buffer allocation, transfers, launch site with a
+      launch-configuration comment, and a kernel signature with a `// TODO` body.
+- [ ] **[J]** Naive FIR kernel: one thread per output sample, taps read from global memory.
+- [ ] **[A]** FIR tests: `identity`, `lowpass`, `lowpass_long` (filter longer than one tile),
+      `tone_odd`, `short` (input shorter than the filter), `zeros`.
+- [ ] **[A]** Review of Jean's kernel: bounds, races, launch configuration.
+
+### M5. Cross-correlation, naive
+
+- [ ] **[A]** `src/xcorr.cu` host side and kernel skeleton.
+- [ ] **[J]** Naive time-domain kernel: one thread per lag.
+- [ ] **[A]** Cross-correlation tests: full output against the reference, recovery of
+      `true_delay_samples` from `ch0` / `ch1`, unequal input lengths, `short`, `zeros`.
+- [ ] **[A]** Review of Jean's kernel.
+
+All tests must pass before M6 starts (correctness before speed).
+
+### M6. Profiling baseline
+
+- [ ] **[A]** `tools/gen_bench.py`: large benchmark inputs written to `out/` (not committed).
+      The fixtures are too small to show memory behaviour.
+- [ ] **[J+A]** Find out whether `ncu` can read performance counters under WSL2. If it cannot,
+      record that and use CUDA events plus Nsight Systems.
+- [ ] **[J]** `docs/PROFILING_LOG.md`: iteration 0 for naive FIR and naive cross-correlation
+      (kernel time, transfer time, memory bandwidth, occupancy, top bottleneck).
+
+### M7. FIR optimization
+
+- [ ] **[J]** `--impl tiled`: shared-memory tiles with a halo of `num_taps - 1` samples. Must
+      handle a filter longer than one tile.
+- [ ] **[J]** Profile it and write the log entry. Negative results are logged too.
+- [ ] **[J+A]** Further iterations, each motivated by a profiler metric that an agent may point
+      out (candidates: taps in constant memory, block-size sweep, structure-of-arrays layout for
+      I and Q).
+
+### M8. Cross-correlation optimization
+
+- [ ] **[J]** `--impl tiled`, profiled, with a log entry.
+- [ ] **[J+A]** `--impl fft`: cuFFT-based correlation (forward FFTs, conjugate multiply, inverse
+      FFT) for comparison. The plans and host code may be agent-written; the element-wise
+      conjugate-multiply kernel lives in `xcorr.cu`, so it is Jean's.
+- [ ] **[J]** Log entry comparing naive, tiled, and FFT-based, with the input size where the
+      FFT version starts to win.
+
+### M9. MVP write-up
+
+- [ ] **[J+A]** `README.md` results table filled in from the profiling log (real numbers only),
+      GPU / CUDA / driver line, status column updated.
+- [ ] **[J]** "What I built, what I profiled, what I changed" section.
+- [ ] **[J]** Screenshots in `docs/screenshots/`.
+- [ ] **[A]** Clean-clone check: the Quick start commands build and pass on a fresh checkout.
+
+## Stage 2: SigFlow compiler (`compiler/`)
+
+Phase A only needs a working `rfgpu`, so it can start after M5 if Jean wants to alternate
+between kernel work and compiler work. Phase C needs the MVP profiling numbers as its baseline.
+
+### C-A. Phase A: front end, IR, scheduling, script backend
+
+- [ ] **[A]** `compiler/CMakeLists.txt`, GoogleTest, the golden-test runner, and
+      `--update-golden`.
+- [ ] **[J]** Design the token, AST, and IR data structures. **[A]** fills in header boilerplate
+      once they are designed.
+- [ ] **[A]** `src/main.cpp` (`--emit=tokens|ast|ir|schedule|json`, `-o`) and the diagnostics
+      printer (file, line, column, source line with a caret).
+- [ ] **[J]** `src/lexer.cpp`. **[A]** lexer unit tests and goldens (unterminated string, stray
+      character, empty program).
+- [ ] **[J]** `src/parser.cpp`, recursive descent. Grammar changes are recorded in
+      `compiler/README.md`. **[A]** one positive and one negative golden per grammar rule.
+- [ ] **[J]** `src/sema.cpp`: name resolution, argument, type, and sample-rate checks.
+      **[A]** negative goldens (unknown name, wrong argument count, unknown keyword argument,
+      type mismatch, rate mismatch).
+- [ ] **[J+A]** IR builder (AST to DAG) and the text and JSON dumps.
+- [ ] **[J]** `src/schedule.cpp`: Kahn's algorithm, cycle detection, source-order tie-breaking.
+      **[A]** unit tests on hand-built graphs.
+- [ ] **[J+A]** Dead-node elimination with `--no-dce`.
+- [ ] **[A]** `rfgpu` gains a magnitude output (`frames<f32, N>`), which `two_channel.sf` needs
+      and the MVP CLI does not have.
+- [ ] **[A]** `src/backend_script.cpp`: emits a script of `rfgpu` commands.
+- [ ] **[A]** `examples/*.sf` and `tests/e2e`: compile, run on the fixtures, compare to
+      `tools/reference.py`.
+
+### C-B. Phase B: liveness and viewer
+
+- [ ] **[J]** `src/liveness.cpp`: last use of each buffer, and buffer reuse. **[A]** unit tests.
+- [ ] **[J+A]** Measure peak GPU memory with and without reuse.
+- [ ] **[A]** `viewer/` scaffolding (TypeScript build, JSON loading).
+- [ ] **[J]** Graph layout and rendering of the IR before and after each pass.
+
+### C-C. Phase C: fusion and CUDA backend
+
+- [ ] **[J]** `src/fuse.cpp` with `--no-fuse`. **[A]** unit tests on hand-built graphs.
+- [ ] **[J+A]** CUDA backend: generated C++ that calls the existing kernels. The fused kernel
+      templates are Jean's.
+- [ ] **[J]** Measurements for `two_channel.sf`: kernel launches, peak GPU memory, end-to-end
+      time, fused against `--no-fuse`, logged in `docs/PROFILING_LOG.md`.
+- [ ] **[J+A]** `compiler/README.md` results table and stage status column.
+
+## Stage 3: Extensions
+
+Out of scope until stages 1 and 2 are finished and measured. Order can change.
 
 1. **Streaming.** A ring buffer of pinned host memory and CUDA streams that overlap transfers
    with compute, processing continuous chunks the way live radio data arrives. Measured against
-   real-time throughput (samples per second).
+   real-time throughput (samples per second). Then streaming execution in `sigflowc`.
 2. **Channelizer.** A polyphase filter bank that splits a wideband capture into sub-channels.
 3. **Direction finding.** GCC-PHAT (generalized cross-correlation with phase transform) for TDOA
    (time difference of arrival) across channels, then DOA (direction of arrival) estimation for
-   a simulated antenna array.
+   a simulated antenna array. Then the matching SigFlow operations.
 4. **Real recordings.** Public SigMF datasets in addition to synthetic data.
 5. **Jetson portability.** Notes on running on Jetson: unified memory, power and clock limits.
+6. **Parser fuzzer.** libFuzzer target for the SigFlow lexer and parser.
 
 ## Deferred ideas
 
 - Fractional-sample delays in the two-channel fixture (the MVP fixture uses an integer delay).
+- A `--max-lag` option for cross-correlation, so a real-time user does not compute every lag.
