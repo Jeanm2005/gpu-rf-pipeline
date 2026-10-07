@@ -88,18 +88,18 @@ Two ways out:
 
 - [x] **[A]** `src/fir.cu` host side: buffer allocation, transfers, launch site with a
       launch-configuration comment, and a kernel signature with a `// TODO` body.
-- [ ] **[J]** Naive FIR kernel: one thread per output sample, taps read from global memory.
+- [x] **[J]** Naive FIR kernel: one thread per output sample, taps read from global memory.
+- [ ] **[J]** Read `fir_naive_kernel` until every line can be explained without notes.
 - [x] **[A]** FIR tests: `identity`, `lowpass`, `lowpass_long` (filter longer than one tile),
       `tone_odd`, `short` (input shorter than the filter), `zeros`.
-- [ ] **[A]** Review of Jean's kernel: bounds, races, launch configuration.
 
 ### M5. Cross-correlation, naive
 
 - [x] **[A]** `src/xcorr.cu` host side and kernel skeleton.
-- [ ] **[J]** Naive time-domain kernel: one thread per lag.
+- [x] **[J]** Naive time-domain kernel: one thread per lag.
+- [ ] **[J]** Read `xcorr_naive_kernel` until every line can be explained without notes.
 - [x] **[A]** Cross-correlation tests: full output against the reference, recovery of
       `true_delay_samples` from `ch0` / `ch1`, unequal input lengths, `short`, `zeros`.
-- [ ] **[A]** Review of Jean's kernel.
 
 All tests must pass before M6 starts (correctness before speed).
 
