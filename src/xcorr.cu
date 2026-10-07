@@ -1,4 +1,4 @@
-// Cross-correlation: custom CUDA kernels (written by Jean) and their host-side wrappers.
+// Cross-correlation: custom CUDA kernels and their host-side wrappers.
 //
 // Definition, matching tools/reference.py:
 //   r[k] = sum_n b[n + k] * conj(a[n])   for every lag k from -(num_a - 1) to num_b - 1,
@@ -16,7 +16,30 @@
 // The last block usually has threads whose index is past num_a + num_b - 1.
 __global__ void xcorr_naive_kernel(const cf32* a, const cf32* b, cf32* r, int num_a, int num_b)
 {
-    // TODO(Jean): kernel body.
+    const int i = blockIdx.x * blockDim.x + threadIdx.x;  // output index this thread computes
+    if (i >= num_a + num_b - 1) {
+        return;
+    }
+    const int lag = i - (num_a - 1);
+
+    // The sum needs a[n] and b[n + lag] to both exist: 0 <= n < num_a and 0 <= n + lag < num_b.
+    // Clamping the loop range to that overlap is the same as treating samples outside either
+    // input as zero, and keeps a bounds test out of the loop.
+    const int first = (lag < 0) ? -lag : 0;
+    const int end = (num_b - lag < num_a) ? num_b - lag : num_a;
+
+    // Accumulate in registers and write r[i] once, so the loop does no global-memory writes.
+    float re = 0.0f;
+    float im = 0.0f;
+    for (int n = first; n < end; ++n) {
+        const cf32 sa = a[n];
+        const cf32 sb = b[n + lag];
+        // sb * conj(sa) = (sb.re + j sb.im) * (sa.re - j sa.im)
+        re += sb.re * sa.re + sb.im * sa.im;
+        im += sb.im * sa.re - sb.re * sa.im;
+    }
+    r[i].re = re;
+    r[i].im = im;
 }
 
 static std::vector<cf32> xcorr_naive(const std::vector<cf32>& a, const std::vector<cf32>& b,
