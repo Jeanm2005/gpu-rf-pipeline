@@ -7,9 +7,9 @@ software-defined radio (SDR), and computes three core operations on an NVIDIA GP
 
 | Operation | GPU implementation | Status |
 |---|---|---|
-| FFT (fast Fourier transform) magnitude spectrum | cuFFT (library baseline) | ⬜ |
-| FIR (finite impulse response) filter | Custom CUDA kernel(s) | ⬜ |
-| Cross-correlation | Custom CUDA kernel (time-domain) + cuFFT version for comparison | ⬜ |
+| FFT (fast Fourier transform) magnitude spectrum | cuFFT (library baseline) | ✅ |
+| FIR (finite impulse response) filter | Custom CUDA kernel(s) | 🟨 naive done, tiled next |
+| Cross-correlation | Custom CUDA kernel (time-domain) + cuFFT version for comparison | 🟨 naive done, tiled and cuFFT next |
 
 Every GPU result is verified against a NumPy/SciPy CPU reference, and every optimization is
 profiled with NVIDIA Nsight Systems and Nsight Compute and written up in
@@ -38,11 +38,15 @@ python tools/gen_fixtures.py --out tests/fixtures
 pytest -q tests/
 ```
 
+If the default compiler is too new for your CUDA Toolkit's `nvcc` (for example GCC 15 with
+CUDA 12.8), pass an older host compiler to CMake. The exact setup used on the development
+machine is in the "Toolchain notes" section of [`docs/ROADMAP.md`](docs/ROADMAP.md).
+
 Example:
 
 ```bash
 ./build/rfgpu xcorr --a tests/fixtures/ch0.cf32 --b tests/fixtures/ch1.cf32 \
-                    --out out/xcorr.cf32 --impl tiled
+                    --out out/xcorr.cf32 --impl naive
 ```
 
 ## How it is tested
@@ -103,28 +107,3 @@ docs/       profiling log, roadmap, screenshots
 
 Agent instructions live in [`AGENTS.md`](AGENTS.md). Custom kernels are written by hand by the
 author; agents help with host code, tests, tooling, and reviews.
-
-Folder structure (the files in the tree that these docs mention don't exist yet; you'll create them as you build):
-
-gpu-rf-pipeline/
-├── AGENTS.md
-├── README.md
-├── CMakeLists.txt
-├── .github/
-│   └── copilot-instructions.md      # copy of AGENTS.md
-├── src/                             # C++17 / CUDA
-│   ├── main.cpp                     # rfgpu CLI entry point
-│   ├── io.hpp / io.cpp              # .cf32 + metadata read/write
-│   ├── fir.cu                       # custom FIR kernel(s)
-│   ├── xcorr.cu                     # custom cross-correlation kernel(s)
-│   └── spectrum.cu                  # cuFFT spectrum
-├── tools/                           # Python
-│   ├── gen_fixtures.py              # synthetic IQ generator with ground truth
-│   └── reference.py                 # NumPy/SciPy CPU reference
-├── tests/
-│   ├── fixtures/                    # generated .cf32 + .json
-│   └── test_pipeline.py             # pytest harness
-└── docs/
-    ├── PROFILING_LOG.md
-    ├── ROADMAP.md
-    └── screenshots/
