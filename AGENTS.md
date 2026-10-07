@@ -122,3 +122,8 @@ SigMF recordings, Jetson porting) goes into `docs/ROADMAP.md`, not into code.
 - Small commits, one working step each, imperative messages ("Add tiled FIR kernel").
 - Don't commit build outputs, profiler reports larger than ~10 MB, or files under `out/`.
 - Don't push or force-push unless asked.
+
+## Subprojects
+
+- `compiler/` — SigFlow compiler (`sigflowc`). Read `compiler/AGENTS.md` before changing
+  anything there; it adds stricter owner-written rules for the core compiler passes.
