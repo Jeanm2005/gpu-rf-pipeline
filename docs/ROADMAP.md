@@ -37,9 +37,8 @@ The reference defines what every GPU operation must compute, so it comes before 
 
 ### M2. Toolchain and host scaffold
 
-- [ ] **[J]** Install the CUDA Toolkit in WSL2 (`nvcc`, cuFFT, Nsight). As of 2026-10-07 the
-      driver is visible (`nvidia-smi` works, RTX 5080 Laptop GPU) but `nvcc` is not installed.
-      See "Toolchain notes" below before choosing a version.
+- [x] **[J+A]** Install the CUDA Toolkit in WSL2: CUDA 12.8.1 in `~/cuda-12.8` (`nvcc`, cuFFT,
+      `nsys`, `ncu`), built with `g++-14`. See "Toolchain notes" below.
 - [x] **[A]** `CMakeLists.txt`: C++17 and CUDA, `rfgpu` target, cuFFT linked, Release and Debug.
 - [x] **[A]** `src/check.hpp`: `CUDA_CHECK` and `CUFFT_CHECK` macros (file, line, error string).
 - [x] **[A]** `src/io.hpp` / `src/io.cpp`: read and write `.cf32` and `.f32`, with clear errors
@@ -64,15 +63,21 @@ combination has no CUDA Toolkit that works unmodified:
   `crt/math_functions.h` conflicts with glibc 2.43 (`rsqrt`, `rsqrtf`, `sinpi`, `sinpif`,
   `cospi`, `cospif` declared without `noexcept`).
 
-Two ways out:
+What is installed (option chosen: keep the driver):
 
-1. **Update the Windows NVIDIA driver** to one that supports CUDA 13, then install CUDA
-   Toolkit 13.x in WSL2. CUDA 13's `nvcc` accepts GCC 15 (checked here: it compiles, only the
-   old driver refuses to run the result). This needs no workaround, so it is the better choice.
-2. **Keep the driver** and install CUDA Toolkit 12.8 with `sudo apt install g++-14`, configure
-   with `-DCMAKE_CXX_COMPILER=g++-14 -DCMAKE_CUDA_HOST_COMPILER=g++-14`, and add
-   `noexcept(true)` to those six declarations in `crt/math_functions.h`. The scaffold was
-   built and tested on the GPU this way, from a toolkit unpacked in a temporary directory.
+- `g++-14` from apt, and CUDA Toolkit 12.8.1 from the runfile, installed without root into
+  `~/cuda-12.8`.
+- The runfile's installer needs `libxml2.so.2`, which Ubuntu 26.04 no longer ships, so with
+  `--silent` it exits without installing anything. It was run with `libxml2.so.2` and
+  `libicu74` taken from the Ubuntu 24.04 packages on `LD_LIBRARY_PATH`.
+- `~/cuda-12.8/include/crt/math_functions.h` is patched: `noexcept(true)` added to those six
+  declarations (original kept as `math_functions.h.bak`).
+- Configure with:
+  `cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=g++-14 -DCMAKE_CUDA_HOST_COMPILER=g++-14`
+  with `~/cuda-12.8/bin` on `PATH`.
+
+The alternative is to update the Windows NVIDIA driver to one that supports CUDA 13 and
+install CUDA Toolkit 13.x, whose `nvcc` accepts GCC 15 without these workarounds.
 
 ### M3. Spectrum (cuFFT)
 
@@ -107,8 +112,12 @@ All tests must pass before M6 starts (correctness before speed).
 
 - [ ] **[A]** `tools/gen_bench.py`: large benchmark inputs written to `out/` (not committed).
       The fixtures are too small to show memory behaviour.
-- [ ] **[J+A]** Find out whether `ncu` can read performance counters under WSL2. If it cannot,
-      record that and use CUDA events plus Nsight Systems.
+- [ ] **[J+A]** Get `ncu` reading performance counters under WSL2. First try (2026-10-07):
+      `ncu` starts but fails with `ERR_NVGPUCTRPERM` (no permission to access GPU performance
+      counters). The setting is on the Windows side: NVIDIA Control Panel, Desktop menu, Enable
+      Developer Settings, then Developer, Manage GPU Performance Counters, allow access for
+      all users. If it still fails after that, record it and use CUDA events plus Nsight
+      Systems.
 - [ ] **[J]** `docs/PROFILING_LOG.md`: iteration 0 for naive FIR and naive cross-correlation
       (kernel time, transfer time, memory bandwidth, occupancy, top bottleneck).
 
