@@ -37,43 +37,67 @@ The reference defines what every GPU operation must compute, so it comes before 
 
 ### M2. Toolchain and host scaffold
 
-- [ ] **[J]** Install the CUDA Toolkit in WSL2 (`nvcc` and cuFFT). As of 2026-10-07 the driver
-      is visible (`nvidia-smi` works, RTX 5080 Laptop GPU) but `nvcc` is not installed.
-- [ ] **[A]** `CMakeLists.txt`: C++17 and CUDA, `rfgpu` target, cuFFT linked, Release and Debug.
-- [ ] **[A]** `src/check.hpp`: `CUDA_CHECK` and `CUFFT_CHECK` macros (file, line, error string).
-- [ ] **[A]** `src/io.hpp` / `src/io.cpp`: read and write `.cf32` and `.f32`, with clear errors
+- [ ] **[J]** Install the CUDA Toolkit in WSL2 (`nvcc`, cuFFT, Nsight). As of 2026-10-07 the
+      driver is visible (`nvidia-smi` works, RTX 5080 Laptop GPU) but `nvcc` is not installed.
+      See "Toolchain notes" below before choosing a version.
+- [x] **[A]** `CMakeLists.txt`: C++17 and CUDA, `rfgpu` target, cuFFT linked, Release and Debug.
+- [x] **[A]** `src/check.hpp`: `CUDA_CHECK` and `CUFFT_CHECK` macros (file, line, error string).
+- [x] **[A]** `src/io.hpp` / `src/io.cpp`: read and write `.cf32` and `.f32`, with clear errors
       for a missing file or an odd float count.
-- [ ] **[A]** `src/main.cpp`: `rfgpu` CLI with `spectrum`, `fir`, `xcorr` subcommands and
-      `--impl` dispatch through a table, so adding a variant is one line.
-- [ ] **[A]** Timing harness: CUDA events, warm-up, at least 10 runs, mean and standard
+- [x] **[A]** `src/main.cpp`: `rfgpu` CLI with `spectrum`, `fir`, `xcorr` subcommands and
+      `--impl` dispatch through a table, so adding a variant is one line. Also `rfgpu info`
+      (GPU, CUDA versions, implementation list as JSON).
+- [x] **[A]** Timing harness: CUDA events, warm-up, at least 10 runs, mean and standard
       deviation, host-to-device and device-to-host time reported separately from kernel time
       (`--bench N`, machine-readable output).
-- [ ] **[A]** `.github/copilot-instructions.md` as a copy of `AGENTS.md`.
+- [x] **[A]** `.github/copilot-instructions.md` as a copy of `AGENTS.md`.
+
+#### Toolchain notes (measured on this machine, 2026-10-07)
+
+The machine is Ubuntu 26.04 (GCC 15, glibc 2.43) with Windows driver 572.76, and that
+combination has no CUDA Toolkit that works unmodified:
+
+- Driver 572.76 supports CUDA up to 12.8. A CUDA 13 runtime fails at start-up with "CUDA driver
+  version is insufficient for CUDA runtime version", and kernels compiled by a CUDA 13 `nvcc`
+  are rejected ("the provided PTX was compiled with an unsupported toolchain").
+- CUDA 12.8's `nvcc` cannot parse GCC 15's standard library headers, and its
+  `crt/math_functions.h` conflicts with glibc 2.43 (`rsqrt`, `rsqrtf`, `sinpi`, `sinpif`,
+  `cospi`, `cospif` declared without `noexcept`).
+
+Two ways out:
+
+1. **Update the Windows NVIDIA driver** to one that supports CUDA 13, then install CUDA
+   Toolkit 13.x in WSL2. CUDA 13's `nvcc` accepts GCC 15 (checked here: it compiles, only the
+   old driver refuses to run the result). This needs no workaround, so it is the better choice.
+2. **Keep the driver** and install CUDA Toolkit 12.8 with `sudo apt install g++-14`, configure
+   with `-DCMAKE_CXX_COMPILER=g++-14 -DCMAKE_CUDA_HOST_COMPILER=g++-14`, and add
+   `noexcept(true)` to those six declarations in `crt/math_functions.h`. The scaffold was
+   built and tested on the GPU this way, from a toolkit unpacked in a temporary directory.
 
 ### M3. Spectrum (cuFFT)
 
-- [ ] **[J+A]** `src/spectrum.cu`: batched cuFFT C2C plan over `nfft`-sized frames. Not a custom
-      kernel, so an agent may write it. Jean decides whether he wants to write it himself.
-- [ ] **[A]** `tests/test_pipeline.py`: harness that runs `rfgpu` on a fixture and compares to
+- [x] **[A]** `src/spectrum.cu`: batched cuFFT C2C plan over `nfft`-sized frames (Jean chose
+      to have the agent write it; it has no custom kernel).
+- [x] **[A]** `tests/test_pipeline.py`: harness that runs `rfgpu` on a fixture and compares to
       `tools/reference.py` with `rtol` / `atol` stated in each test. Skips cleanly when the
       binary or the GPU is missing.
-- [ ] **[A]** Spectrum tests: `tone`, `tone_odd` (partial last frame), `short` (shorter than one
+- [x] **[A]** Spectrum tests: `tone`, `tone_odd` (partial last frame), `short` (shorter than one
       frame), `zeros`.
 
 ### M4. FIR, naive
 
-- [ ] **[A]** `src/fir.cu` host side: buffer allocation, transfers, launch site with a
+- [x] **[A]** `src/fir.cu` host side: buffer allocation, transfers, launch site with a
       launch-configuration comment, and a kernel signature with a `// TODO` body.
 - [ ] **[J]** Naive FIR kernel: one thread per output sample, taps read from global memory.
-- [ ] **[A]** FIR tests: `identity`, `lowpass`, `lowpass_long` (filter longer than one tile),
+- [x] **[A]** FIR tests: `identity`, `lowpass`, `lowpass_long` (filter longer than one tile),
       `tone_odd`, `short` (input shorter than the filter), `zeros`.
 - [ ] **[A]** Review of Jean's kernel: bounds, races, launch configuration.
 
 ### M5. Cross-correlation, naive
 
-- [ ] **[A]** `src/xcorr.cu` host side and kernel skeleton.
+- [x] **[A]** `src/xcorr.cu` host side and kernel skeleton.
 - [ ] **[J]** Naive time-domain kernel: one thread per lag.
-- [ ] **[A]** Cross-correlation tests: full output against the reference, recovery of
+- [x] **[A]** Cross-correlation tests: full output against the reference, recovery of
       `true_delay_samples` from `ch0` / `ch1`, unequal input lengths, `short`, `zeros`.
 - [ ] **[A]** Review of Jean's kernel.
 
