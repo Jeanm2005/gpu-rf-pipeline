@@ -1,4 +1,4 @@
-// FIR filter: custom CUDA kernels (written by Jean) and their host-side wrappers.
+// FIR filter: custom CUDA kernels and their host-side wrappers.
 //
 // Definition, matching tools/reference.py:
 //   y[n] = sum_{k=0}^{num_taps-1} taps[k] * x[n - k],   with x[m] = 0 for m < 0
@@ -15,7 +15,26 @@
 __global__ void fir_naive_kernel(const cf32* x, const float* taps, cf32* y, int num_samples,
                                  int num_taps)
 {
-    // TODO(Jean): kernel body.
+    const int n = blockIdx.x * blockDim.x + threadIdx.x;  // output sample this thread computes
+    if (n >= num_samples) {
+        return;
+    }
+
+    // x[n - k] only exists for k <= n. Stopping the loop there is the same as treating the
+    // samples before the start of the input as zero, without reading out of bounds.
+    const int last_tap = (n < num_taps - 1) ? n : num_taps - 1;
+
+    // Accumulate in registers and write y[n] once, so the loop does no global-memory writes.
+    float re = 0.0f;
+    float im = 0.0f;
+    for (int k = 0; k <= last_tap; ++k) {
+        const float tap = taps[k];
+        const cf32 sample = x[n - k];
+        re += tap * sample.re;
+        im += tap * sample.im;
+    }
+    y[n].re = re;
+    y[n].im = im;
 }
 
 static std::vector<cf32> fir_naive(const std::vector<cf32>& x, const std::vector<float>& taps,
