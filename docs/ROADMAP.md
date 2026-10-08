@@ -32,8 +32,9 @@ The reference defines what every GPU operation must compute, so it comes before 
       `.cf32` / `.f32` read and write helpers and a CLI that mirrors `rfgpu`.
 - [x] **[A]** `tests/test_reference.py`: the reference checked against brute-force definitions
       and the fixture ground truth (tone bins, stopband rejection, known delay).
-- [ ] **[J]** Read the three output conventions in the `tools/reference.py` docstring and
-      confirm or change them. The kernels have to match them exactly.
+- [x] **[J]** Read the three output conventions in the `tools/reference.py` docstring and
+      confirm or change them. The kernels have to match them exactly. Confirmed unchanged by
+      Jean on 2026-10-08.
 
 ### M2. Toolchain and host scaffold
 
@@ -110,16 +111,26 @@ All tests must pass before M6 starts (correctness before speed).
 
 ### M6. Profiling baseline
 
-- [ ] **[A]** `tools/gen_bench.py`: large benchmark inputs written to `out/` (not committed).
-      The fixtures are too small to show memory behaviour.
-- [ ] **[J+A]** Get `ncu` reading performance counters under WSL2. First try (2026-10-07):
+- [x] **[A]** `tools/gen_bench.py`: large benchmark inputs written to `out/bench/` (not
+      committed), with `tests/test_gen_bench.py`. The fixtures are too small to show memory
+      behaviour. Defaults: `bench_tone` with 2^24 samples (128 MB) for FIR, and `bench_ch0` /
+      `bench_ch1` with 2^18 samples each for cross-correlation.
+- [x] **[J+A]** Get `ncu` reading performance counters under WSL2. First try (2026-10-07):
       `ncu` starts but fails with `ERR_NVGPUCTRPERM` (no permission to access GPU performance
       counters). The setting is on the Windows side: NVIDIA Control Panel, Desktop menu, Enable
       Developer Settings, then Developer, Manage GPU Performance Counters, allow access for
       all users. If it still fails after that, record it and use CUDA events plus Nsight
-      Systems.
-- [ ] **[J]** `docs/PROFILING_LOG.md`: iteration 0 for naive FIR and naive cross-correlation
-      (kernel time, transfer time, memory bandwidth, occupancy, top bottleneck).
+      Systems. Second try (2026-10-08): same `ERR_NVGPUCTRPERM`. `nsys profile` runs and
+      records the host-side CUDA API calls (`cuda_api_sum`), but its report has no GPU-side
+      data: `cuda_gpu_kern_sum` and `cuda_gpu_mem_time_sum` are skipped with "does not contain
+      CUDA kernel data". Later on 2026-10-08, after the Windows setting was changed, `ncu
+      --set full` works (the output directory must exist first: `mkdir -p docs/profiles`).
+      `nsys` still records no GPU-side data, so kernel and transfer times come from CUDA
+      events (`--bench`) and everything else from `ncu`.
+- [x] **[J]** `docs/PROFILING_LOG.md`: iteration 0 for naive FIR and naive cross-correlation
+      (kernel time, transfer time, memory bandwidth, occupancy, top bottleneck). Jean handed
+      the logging of iterations to the agent on 2026-10-08; the analysis in each entry is
+      still his to check.
 
 ### M7. FIR optimization
 
