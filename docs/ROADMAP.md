@@ -172,11 +172,18 @@ The three kernels and log entries below were written by an agent at Jean's expli
 
 ### M9. MVP write-up
 
-- [ ] **[J+A]** `README.md` results table filled in from the profiling log (real numbers only),
+- [x] **[J+A]** `README.md` results table filled in from the profiling log (real numbers only),
       GPU / CUDA / driver line, status column updated.
-- [ ] **[J]** "What I built, what I profiled, what I changed" section.
-- [ ] **[J]** Screenshots in `docs/screenshots/`.
-- [ ] **[A]** Clean-clone check: the Quick start commands build and pass on a fresh checkout.
+- [ ] **[J]** "What I built, what I profiled, what I changed" section. An agent wrote a draft
+      from the profiling log (2026-10-08), marked as a draft in the README; Jean rewrites it
+      in his own words.
+- [ ] **[J]** Screenshots in `docs/screenshots/`. None yet: the profiles were read from the
+      `ncu` command line. Open the reports in `docs/profiles/` with the Nsight Compute GUI
+      (`ncu-ui`) to capture them.
+- [x] **[A]** Clean-clone check: the Quick start commands build and pass on a fresh checkout
+      (2026-10-08: fresh clone, 116 tests pass, regenerated fixtures are byte-identical to the
+      committed ones). On this machine the configure step needs the `g++-14` flags from the
+      toolchain notes; plain `cmake -S . -B build` fails because CUDA 12.8 cannot use GCC 15.
 
 ## Stage 2: SigFlow compiler (`compiler/`)
 
