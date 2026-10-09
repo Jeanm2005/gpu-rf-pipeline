@@ -8,7 +8,7 @@ software-defined radio (SDR), and computes three core operations on an NVIDIA GP
 | Operation | GPU implementation | Status |
 |---|---|---|
 | FFT (fast Fourier transform) magnitude spectrum | cuFFT (library baseline) | ✅ |
-| FIR (finite impulse response) filter | Custom CUDA kernel(s) | 🟨 naive and tiled done, further iterations next |
+| FIR (finite impulse response) filter | Custom CUDA kernel(s) | ✅ naive, tiled, tiled with constant-memory taps |
 | Cross-correlation | Custom CUDA kernel (time-domain) + cuFFT version for comparison | 🟨 naive done, tiled and cuFFT next |
 
 Every GPU result is verified against a NumPy/SciPy CPU reference, and every optimization is

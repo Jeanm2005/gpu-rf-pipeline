@@ -126,6 +126,59 @@ Kernel, measurements, and this entry were written by an agent at Jean's request 
 - Screenshot: none. Reports: `docs/profiles/fir_tiled_63.ncu-rep`,
   `docs/profiles/fir_tiled_1025.ncu-rep`.
 
+## Iteration 2 — FIR — taps in constant memory (`--impl tiled_const`)
+
+Kernel, measurements, and this entry were written by an agent at Jean's request (2026-10-08).
+
+- GPU / driver / CUDA version: NVIDIA GeForce RTX 5080 Laptop GPU (compute capability 12.0,
+  60 SMs) / 572.76 / 12.8
+- Input size and parameters: `bench_tone.cf32`, 2^24 samples (128 MB), `--impl tiled_const`,
+  block size 256, grid 65536, `lowpass.f32` (63 taps) and `lowpass_long.f32` (1025 taps).
+  Naive and tiled were re-timed in the same session. `--bench 20`, 3 warm-up runs, two rounds
+  (the second round is in parentheses).
+
+| | 63 taps | 1025 taps |
+|---|---|---|
+| Kernel time, naive (mean ± std) | 1.559 ± 0.023 ms (1.445 ± 0.034) | 23.74 ± 1.08 ms (23.74 ± 1.01) |
+| Kernel time, tiled | 1.130 ± 0.041 ms (1.041 ± 0.031) | 15.10 ± 0.55 ms (15.20 ± 0.69) |
+| Kernel time, tiled_const | 0.655 ± 0.008 ms (0.660 ± 0.017) | 8.22 ± 0.20 ms (8.32 ± 0.27) |
+| Host-to-device transfer (tiled_const) | 12.44 ± 1.08 ms | 12.94 ± 1.83 ms |
+| Device-to-host transfer (tiled_const) | 12.99 ± 0.71 ms | 15.16 ± 1.81 ms |
+| `ncu` Duration (SM clock during profiling) | 1.45 ms (893 MHz) | 19.72 ms (934 MHz) |
+| Max Bandwidth (% of peak; the busiest memory unit) | 94.51 | 98.90 |
+| L1/TEX Cache Throughput | 95.93 % | 99.12 % |
+| L2 Cache Throughput | 18.24 % | 3.06 % |
+| DRAM Throughput | 38.11 % (172.69 GB/s) | 2.81 % (12.71 GB/s) |
+| L1/TEX hit rate / L2 hit rate | 52.89 % / 13.81 % | 49.65 % / 67.23 % |
+| Dynamic shared memory per block | 2.54 KB | 10.24 KB |
+| Occupancy, theoretical / achieved | 100 % / 94.64 % | 100 % / 99.08 % |
+| Registers per thread | 27 | 27 |
+| Issue Slots Busy / SM Busy | 62.52 % / 62.52 % | 54.76 % / 54.76 % |
+| Eligible warps per scheduler (of active) | 2.24 of 11.26 | 1.98 of 11.89 |
+| Warp cycles per issued instruction | 18.02 | 21.71 |
+| Excessive (uncoalesced) sectors | 53 % (10.6 million) | 50 % (25.2 million) |
+
+- Top bottleneck reported by the profiler: L1/TEX is still the busiest unit (96 to 99 % of
+  peak) and the MIO queue is still the largest stall, but smaller: 6.1 of 18.0 cycles between
+  issued instructions (33.6 %) with 63 taps, 9.7 of 21.7 (44.7 %) with 1025. Issue Slots Busy
+  rose from 30 to 37 % to 55 to 63 %, so the schedulers issue instructions about twice as
+  often. What remains on the global path is the tile load and the output store, which `ncu`
+  flags as using only about half of each 32-byte sector. The count of excessive sectors is
+  the same as in iteration 1 (10.6 and 25.2 million); the percentage is higher only because
+  the tap loads no longer count as global sectors.
+- What I changed and why: iteration 1 left one global load (the tap) per multiply-add, and the
+  MIO queue was the top stall. The taps now live in a `__constant__` array filled with
+  `cudaMemcpyToSymbol`; every thread of a warp reads the same tap in the same loop iteration,
+  which the constant cache serves without a global-memory request. The kernel is otherwise
+  identical to `tiled`. The host limits this variant to 8192 taps.
+- Result (speedup vs. previous iteration and vs. naive): vs. tiled 1.73× (63 taps) and 1.84×
+  (1025 taps); vs. naive 2.38× and 2.89× (first round). Output is bit-identical to `tiled` on
+  the benchmark input for both filters. With 63 taps the kernel (0.66 ms) is now about 2.6 %
+  of the transfer time (about 25 ms), so further kernel work on this filter length changes
+  end-to-end time very little.
+- Screenshot: none. Reports: `docs/profiles/fir_tiled_const_63.ncu-rep`,
+  `docs/profiles/fir_tiled_const_1025.ncu-rep`.
+
 ## Entry template
 
 ```markdown
