@@ -179,6 +179,95 @@ Kernel, measurements, and this entry were written by an agent at Jean's request 
 - Screenshot: none. Reports: `docs/profiles/fir_tiled_const_63.ncu-rep`,
   `docs/profiles/fir_tiled_const_1025.ncu-rep`.
 
+## Iteration 1 — cross-correlation — shared-memory tiles (`--impl tiled`)
+
+Kernel, measurements, and this entry were written by an agent at Jean's request (2026-10-08).
+
+- GPU / driver / CUDA version: NVIDIA GeForce RTX 5080 Laptop GPU (compute capability 12.0,
+  60 SMs) / 572.76 / 12.8
+- Input size and parameters: `bench_ch0.cf32` and `bench_ch1.cf32`, 2^18 samples each, 524287
+  lags, `--impl tiled`, block size 256 (also the chunk length), grid 2048, 6.14 KB of dynamic
+  shared memory per block. `--bench 20`, 3 warm-up runs; naive re-timed in the same session.
+- Kernel time (mean ± std): 68.7 ± 2.4 ms (naive, same session: 150.6 ± 4.5 ms).
+  Transfer time: host-to-device 0.74 ± 0.10 ms, device-to-host 1.23 ± 0.30 ms.
+  `ncu` Duration: 127.57 ms at an SM clock of 933 MHz (naive: 317.41 ms at 940 MHz).
+- Achieved memory bandwidth (% of peak): Max Bandwidth 92.42 %, L1/TEX Cache Throughput
+  93.58 %, L2 Cache Throughput 2.91 %, DRAM Throughput 0.01 %. L1/TEX hit rate 63.78 %, L2 hit
+  rate 99.77 %.
+  Occupancy: theoretical 100 %, achieved 98.93 %, 40 registers per thread.
+- Top bottleneck reported by the profiler: the MIO (memory input/output) instruction queue,
+  8.4 of 18.2 cycles between issued instructions (46.2 %). In iteration 0 it was the L1 queue
+  for global loads, 23.5 of 35.4 cycles (66.6 %). Issue Slots Busy rose from 33.29 % to
+  65.09 % and eligible warps per scheduler from 2.28 to 3.50. `ncu` flags 54 % of the
+  remaining global sectors as excessive (the tile loads and the output store).
+- What I changed and why: iteration 0 showed every lag re-reading both inputs from global
+  memory, with warps stalled on those loads. A block of 256 lags now walks input `a` in chunks
+  of 256 samples; per chunk it stages those 256 samples of `a` and the 511 samples of `b` that
+  the block's lags pair with them, and each thread accumulates the chunk from shared memory.
+  Indices outside either input are stored as zeros, so the inner loop has no bounds test, and
+  the chunk range is the same for every thread of a block, so all threads reach the same
+  barriers. Each thread still adds its products in the same order as naive.
+- Result (speedup vs. previous iteration and vs. naive): 2.19× (naive is the previous
+  iteration). Output is bit-identical to naive at every size in the sweep below.
+- Screenshot: none. Report: `docs/profiles/xcorr_tiled.ncu-rep`.
+
+## Iteration 2 — cross-correlation — cuFFT-based (`--impl fft`), and the three variants compared
+
+Kernel, measurements, and this entry were written by an agent at Jean's request (2026-10-08).
+
+- GPU / driver / CUDA version: NVIDIA GeForce RTX 5080 Laptop GPU (compute capability 12.0,
+  60 SMs) / 572.76 / 12.8
+- Input size and parameters: `python tools/gen_bench.py --xcorr-samples N` for N from 2^8 to
+  2^22 samples per channel (the 2^18 pair is identical to `bench_ch0` / `bench_ch1`).
+  `--bench 20`, 3 warm-up runs. The FFT length is the next power of two that holds all
+  `2N - 1` lags, which is `2N` here.
+
+Kernel time in ms (CUDA events, mean ± std). For `fft` it covers two forward FFTs, the
+conjugate-multiply kernel, and the inverse FFT; plan creation is outside the timed region.
+
+| Samples per channel | naive | tiled | fft |
+|---|---|---|---|
+| 2^8 | 0.020 ± 0.003 | 0.018 ± 0.016 | 0.047 ± 0.028 |
+| 2^10 | 0.061 ± 0.040 | 0.026 ± 0.008 | 0.035 ± 0.015 |
+| 2^12 | 0.164 ± 0.014 | 0.069 ± 0.008 | 0.034 ± 0.004 |
+| 2^14 | 0.733 ± 0.021 | 0.355 ± 0.044 | 0.100 ± 0.027 |
+| 2^16 | 9.29 ± 0.06 | 3.99 ± 0.21 | 0.108 ± 0.021 |
+| 2^18 | 150.6 ± 4.5 | 68.7 ± 2.4 | 0.140 ± 0.022 |
+| 2^20 | not run | not run | 0.464 ± 0.035 |
+| 2^22 | not run | not run | 2.42 ± 0.22 |
+
+- Kernel time (mean ± std) at 2^18: 0.140 ± 0.022 ms.
+  Transfer time: host-to-device 0.51 ± 0.14 ms, device-to-host 0.63 ± 0.12 ms.
+- Achieved memory bandwidth (% of peak) and occupancy, from `ncu` at 2^18. The run has seven
+  kernels of 33 to 40 µs each: six cuFFT kernels (two per transform) and
+  `xcorr_conj_mul_kernel`.
+  - `xcorr_conj_mul_kernel`: Duration 32.51 µs, Max Bandwidth 57.01 % (DRAM Throughput
+    57.01 %, L1/TEX 23.10 %, L2 28.91 %), occupancy 100 % theoretical and 72.50 % achieved,
+    16 registers per thread, Issue Slots Busy 9.74 %.
+  - cuFFT kernels: Max Bandwidth 23 to 27 %, achieved occupancy 33 to 64 % (theoretical 50 %
+    or 100 %), 32.77 KB of shared memory per block.
+- Top bottleneck reported by the profiler: for `xcorr_conj_mul_kernel`, warps waiting on a
+  scoreboard dependency on an L1TEX operation, 81.9 of 90.1 cycles between issued
+  instructions (91.0 %). The kernel is two loads, a few multiplies, and a store per element,
+  so it waits on data arriving from DRAM; that is the expected profile for a streaming kernel
+  over an 8 MB working set. `ncu` flags 50 % of its sectors as excessive.
+- What I changed and why: the time-domain kernels do about `N^2` multiply-adds, which no
+  memory optimization changes. The correlation theorem gives the same result in
+  `O(N log N)`: forward FFT of both inputs, `B * conj(A)` per bin, inverse FFT. Input `a` is
+  uploaded rotated left by `num_a - 1` samples, which shifts the circular result so that
+  output index `i` already holds lag `i - (num_a - 1)` and no reordering pass is needed. The
+  `1 / fft_length` normalization is folded into the conjugate-multiply kernel.
+- Result (speedup vs. previous iteration and vs. naive): at 2^18, 490× faster than tiled and
+  1070× faster than naive. The FFT version starts to win between 2^10 and 2^12 samples per
+  channel: at 2^10 tiled is ahead (0.026 against 0.035 ms, within one standard deviation of
+  each other) and at 2^8 both time-domain kernels beat it; from 2^12 up `fft` is fastest. All
+  times below about 0.1 ms carry large relative noise. At 2^18 the transfers (1.1 ms) are
+  about 8 times the `fft` kernel time.
+  Accuracy against the float64 reference at 2^18 (peak value 2.6e5): maximum absolute error
+  0.064 for `fft` and 0.72 for naive and tiled, whose single running float32 sum loses more
+  precision as the inputs grow. All three recover the true delay of 37 samples at every size.
+- Screenshot: none. Report: `docs/profiles/xcorr_fft.ncu-rep`.
+
 ## Entry template
 
 ```markdown

@@ -157,12 +157,18 @@ All tests must pass before M6 starts (correctness before speed).
 
 ### M8. Cross-correlation optimization
 
-- [ ] **[J]** `--impl tiled`, profiled, with a log entry.
-- [ ] **[J+A]** `--impl fft`: cuFFT-based correlation (forward FFTs, conjugate multiply, inverse
-      FFT) for comparison. The plans and host code may be agent-written; the element-wise
-      conjugate-multiply kernel lives in `xcorr.cu`, so it is Jean's.
-- [ ] **[J]** Log entry comparing naive, tiled, and FFT-based, with the input size where the
-      FFT version starts to win.
+The three kernels and log entries below were written by an agent at Jean's explicit request
+(2026-10-08).
+
+- [x] **[J]** `--impl tiled`, profiled, with a log entry (cross-correlation iteration 1).
+- [x] **[J+A]** `--impl fft`: cuFFT-based correlation (forward FFTs, conjugate multiply, inverse
+      FFT) for comparison. `FftPlan` moved to `src/fft_plan.hpp` so `spectrum.cu` and
+      `xcorr.cu` share it.
+- [x] **[J]** Log entry comparing naive, tiled, and FFT-based, with the input size where the
+      FFT version starts to win (cross-correlation iteration 2: between 2^10 and 2^12 samples
+      per channel).
+- [ ] **[J]** Read `xcorr_tiled_kernel` and `xcorr_conj_mul_kernel` until every line can be
+      explained without notes.
 
 ### M9. MVP write-up
 
