@@ -133,10 +133,11 @@ def test_fir_of_zeros_is_exactly_zero(tmp_path: Path, impl: str, taps: str) -> N
 
 
 # --- Cross-correlation ---------------------------------------------------------------------
-# The ch0 / ch1 peak is about 1.65e4 and the other lags are of order 100. Summing 16384
-# float32 products in order gives an error of about 1e-2 on the peak and 3e-4 elsewhere
-# (estimated on the CPU in float32); rtol covers the peak and atol the rest, each with a
-# factor of 10 or more to spare.
+# The ch0 / ch1 peak is about 1.65e4 and the other lags are of order 100. Measured error
+# against the float64 reference on that pair: 1.1e-2 on the peak and up to 1.5e-3 elsewhere for
+# the time-domain kernels (one running float32 sum per lag), 2.6e-3 and 1.0e-3 for the cuFFT
+# version. rtol covers the peak (0.165 allowed) and atol the rest, with a factor of 3 or more
+# to spare.
 XCORR_RTOL = 1e-5
 XCORR_ATOL = 5e-3
 
