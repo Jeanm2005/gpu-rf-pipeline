@@ -134,9 +134,16 @@ All tests must pass before M6 starts (correctness before speed).
 
 ### M7. FIR optimization
 
-- [ ] **[J]** `--impl tiled`: shared-memory tiles with a halo of `num_taps - 1` samples. Must
-      handle a filter longer than one tile.
-- [ ] **[J]** Profile it and write the log entry. Negative results are logged too.
+- [x] **[A]** `--impl tiled` host side in `src/fir.cu`: wrapper, launch site with dynamic
+      shared memory for the tile, a clear error when the halo does not fit in one block's
+      shared memory, and `fir_tiled_kernel` with a `// TODO` body. The FIR tests pick the
+      variant up from `rfgpu info` and fail for it until the kernel is written.
+- [x] **[J]** `--impl tiled`: shared-memory tiles with a halo of `num_taps - 1` samples. Must
+      handle a filter longer than one tile. Written by an agent at Jean's explicit request
+      (2026-10-08).
+- [x] **[J]** Profile it and write the log entry. Negative results are logged too. Done by an
+      agent (iteration 1).
+- [ ] **[J]** Read `fir_tiled_kernel` until every line can be explained without notes.
 - [ ] **[J+A]** Further iterations, each motivated by a profiler metric that an agent may point
       out (candidates: taps in constant memory, block-size sweep, structure-of-arrays layout for
       I and Q).

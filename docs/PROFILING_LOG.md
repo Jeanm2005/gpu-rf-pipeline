@@ -76,6 +76,56 @@ so there are no timeline screenshots. Inputs come from `python tools/gen_bench.p
   1 % of the kernel time.
 - Screenshot: none. Report: `docs/profiles/xcorr_naive.ncu-rep`.
 
+## Iteration 1 — FIR — shared-memory tiles (`--impl tiled`)
+
+Kernel, measurements, and this entry were written by an agent at Jean's request (2026-10-08).
+
+- GPU / driver / CUDA version: NVIDIA GeForce RTX 5080 Laptop GPU (compute capability 12.0,
+  60 SMs) / 572.76 / 12.8
+- Input size and parameters: `bench_tone.cf32`, 2^24 samples (128 MB), `--impl tiled`, block
+  size 256, grid 65536, `lowpass.f32` (63 taps) and `lowpass_long.f32` (1025 taps). Naive was
+  re-timed in the same session. `--bench 20`, 3 warm-up runs.
+
+| | 63 taps | 1025 taps |
+|---|---|---|
+| Kernel time, naive, same session (mean ± std) | 1.565 ± 0.044 ms | 24.71 ± 0.71 ms |
+| Kernel time, tiled (mean ± std) | 1.099 ± 0.023 ms | 15.50 ± 0.97 ms |
+| Host-to-device transfer (tiled) | 12.75 ± 0.90 ms | 13.13 ± 1.76 ms |
+| Device-to-host transfer (tiled) | 13.99 ± 1.56 ms | 15.16 ± 2.67 ms |
+| `ncu` Duration (SM clock during profiling) | 2.58 ms (914 MHz) | 39.04 ms (939 MHz) |
+| Max Bandwidth (% of peak; the busiest memory unit) | 98.29 | 98.81 |
+| L1/TEX Cache Throughput | 98.55 % | 98.89 % |
+| L2 Cache Throughput | 11.19 % | 1.78 % |
+| DRAM Throughput | 21.30 % (96.52 GB/s) | 1.42 % (6.45 GB/s) |
+| L1/TEX hit rate / L2 hit rate | 82.16 % / 18.53 % | 95.18 % / 71.00 % |
+| Dynamic shared memory per block | 2.54 KB | 10.24 KB |
+| Occupancy, theoretical / achieved | 100 % / 95.63 % | 100 % / 99.42 % |
+| Registers per thread | 39 | 39 |
+| Issue Slots Busy / SM Busy | 36.69 % / 36.69 % | 29.94 % / 33.23 % |
+| Eligible warps per scheduler (of active) | 1.49 of 11.46 | 1.52 of 11.93 |
+| Warp cycles per issued instruction | 31.23 | 39.85 |
+| Excessive (uncoalesced) sectors | 20 % | 4 % |
+
+- Top bottleneck reported by the profiler: still the L1/TEX unit at 98 to 99 % of peak, which
+  in `ncu` also carries shared-memory traffic. The dominant stall changed from the L1
+  local/global queue to "waiting for the MIO (memory input/output) instruction queue": 13.5 of
+  31.2 cycles between issued instructions (43.3 %) with 63 taps, 20.6 of 39.8 (51.6 %) with
+  1025. The tap loop still does one global load (the tap) and one shared load (the sample)
+  per multiply-add.
+- What I changed and why: iteration 0 showed warps stalled on global loads, with every thread
+  re-reading samples its neighbours also read. Each block now copies the `num_taps - 1 + 256`
+  samples it needs into shared memory once (a cooperative, coalesced load that also covers a
+  halo longer than the block), and the tap loop reads samples from the tile. Samples outside
+  the input are stored as zeros, so the loop has no bounds test. Taps are unchanged (global
+  memory). Shared memory does not limit occupancy at either filter length (block limit from
+  shared memory 18 and 9, from registers and warps 6).
+- Result (speedup vs. previous iteration and vs. naive): 1.42× with 63 taps and 1.59× with
+  1025 taps (naive is the previous iteration). Output is bit-identical to naive on the
+  benchmark input for both filters. Transfers are unchanged and still about 25 times the
+  kernel time with 63 taps.
+- Screenshot: none. Reports: `docs/profiles/fir_tiled_63.ncu-rep`,
+  `docs/profiles/fir_tiled_1025.ncu-rep`.
+
 ## Entry template
 
 ```markdown
