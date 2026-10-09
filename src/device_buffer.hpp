@@ -45,6 +45,14 @@ public:
         }
     }
 
+    // Host-to-device copy of `count` elements to elements [offset, offset + count).
+    void upload_at(std::size_t offset, const T* src, std::size_t count)
+    {
+        if (count > 0) {
+            CUDA_CHECK(cudaMemcpy(ptr_ + offset, src, count * sizeof(T), cudaMemcpyHostToDevice));
+        }
+    }
+
     // Device-to-host copy of `count` elements from the start of the buffer. Blocks until done,
     // and waits for kernels already launched on the default stream.
     void download(T* dst, std::size_t count) const
