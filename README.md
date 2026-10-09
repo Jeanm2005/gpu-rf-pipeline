@@ -12,7 +12,7 @@ software-defined radio (SDR), and computes three core operations on an NVIDIA GP
 | Cross-correlation | Custom CUDA kernel (time-domain) + cuFFT version for comparison | ✅ naive, tiled, cuFFT-based |
 
 Every GPU result is verified against a NumPy/SciPy CPU reference, and every optimization is
-profiled with NVIDIA Nsight Systems and Nsight Compute and written up in
+timed with CUDA events, profiled with NVIDIA Nsight Compute, and written up in
 [`docs/PROFILING_LOG.md`](docs/PROFILING_LOG.md).
 
 ## Why
@@ -46,7 +46,18 @@ Example:
 
 ```bash
 ./build/rfgpu xcorr --a tests/fixtures/ch0.cf32 --b tests/fixtures/ch1.cf32 \
-                    --out out/xcorr.cf32 --impl naive
+                    --out out/xcorr.cf32 --impl fft
+```
+
+`./build/rfgpu --help` lists every implementation variant. To reproduce the measurements:
+
+```bash
+python tools/gen_bench.py --out out/bench          # large inputs, not committed
+./build/rfgpu fir --in out/bench/bench_tone.cf32 --taps tests/fixtures/lowpass_long.f32 \
+                  --out out/fir.cf32 --impl tiled_const --bench 20
+mkdir -p docs/profiles
+ncu --set full -o docs/profiles/fir ./build/rfgpu fir --in out/bench/bench_tone.cf32 \
+    --taps tests/fixtures/lowpass_long.f32 --out out/fir.cf32 --impl tiled_const
 ```
 
 ## How it is tested
@@ -64,22 +75,68 @@ Data format: `.cf32` files are interleaved little-endian float32 `[I, Q, I, Q, .
 
 ## Results
 
-> Filled in from real profiler output only. See `docs/PROFILING_LOG.md` for details and
-> screenshots.
+> Filled in from real profiler output only. See `docs/PROFILING_LOG.md` for the full entries.
 
-| Kernel | Variant | Kernel time | Memory bandwidth (% of peak) | Speedup vs. naive |
+Kernel time is the mean of 20 runs timed with CUDA events after 3 warm-up runs, with transfers
+excluded. Memory bandwidth is Nsight Compute's "Max Bandwidth": the utilization of the busiest
+memory unit, as a percentage of its peak.
+
+FIR, 2^24 samples (128 MB):
+
+| Variant | Taps | Kernel time | Memory bandwidth (% of peak) | Speedup vs. naive |
 |---|---|---|---|---|
-| FIR | naive | — | — | 1.0× |
-| FIR | shared-memory tiled | — | — | — |
-| Cross-correlation | naive | — | — | 1.0× |
-| Cross-correlation | tiled | — | — | — |
-| Cross-correlation | cuFFT-based | — | — | — |
+| naive | 63 | 1.559 ms | 98.83 | 1.0× |
+| shared-memory tiled | 63 | 1.130 ms | 98.29 | 1.38× |
+| tiled, taps in constant memory | 63 | 0.655 ms | 94.51 | 2.38× |
+| naive | 1025 | 23.74 ms | 93.81 | 1.0× |
+| shared-memory tiled | 1025 | 15.10 ms | 98.81 | 1.57× |
+| tiled, taps in constant memory | 1025 | 8.22 ms | 98.90 | 2.89× |
 
-GPU: — · CUDA: — · Driver: —
+Cross-correlation, 2^18 samples per channel (524287 lags):
+
+| Variant | Kernel time | Memory bandwidth (% of peak) | Speedup vs. naive |
+|---|---|---|---|
+| naive | 150.6 ms | 95.88 | 1.0× |
+| shared-memory tiled | 68.7 ms | 92.42 | 2.19× |
+| cuFFT-based | 0.140 ms | 57.01 (conjugate-multiply kernel) | about 1070× |
+
+The cuFFT-based version overtakes the time-domain kernels between 2^10 and 2^12 samples per
+channel. Host-to-device plus device-to-host transfers take about 25 ms for the FIR input and
+about 1.1 ms for the cross-correlation input, which is more than the fastest kernel in both
+cases.
+
+GPU: NVIDIA GeForce RTX 5080 Laptop GPU · CUDA: 12.8 · Driver: 572.76 (WSL2)
 
 ## What I built, what I profiled, what I changed
 
-> Written after the profiling iterations are complete.
+> Draft written by an AI agent from the profiling log. To be rewritten in the author's own
+> words.
+
+**Built.** A command-line tool, `rfgpu`, with three operations on recorded IQ samples: a framed
+FFT spectrum (cuFFT), an FIR filter, and cross-correlation. The FIR filter has three kernel
+variants and cross-correlation has three, all selectable with `--impl`, so every older variant
+stays available as a baseline. A pytest harness runs each variant on synthetic fixtures with
+known ground truth and compares it to a float64 NumPy/SciPy reference.
+
+**Profiled.** Kernel and transfer times come from CUDA events (20 runs after warm-up, setup
+excluded). Per-kernel metrics come from Nsight Compute. Nsight Systems recorded no GPU-side
+data under WSL2 on this machine, so there are no timeline captures.
+
+**Changed.**
+
+- The naive FIR and cross-correlation kernels were not limited by DRAM or by arithmetic. Their
+  warps spent 67 to 75 % of the cycles between instructions waiting on the queue for global
+  memory loads, with occupancy already near 100 %.
+- Staging the samples each block needs in shared memory gave 1.4× to 1.6× for FIR and 2.2×
+  for cross-correlation.
+- After that, the FIR tap loop still made one global load per multiply-add. Moving the taps to
+  constant memory gave a further 1.7× to 1.8×.
+- For cross-correlation the larger gain was algorithmic: the FFT version does `O(N log N)`
+  work instead of `O(N^2)`, and is about 1000× faster at 2^18 samples per channel. It is also
+  more accurate there, because the time-domain kernels keep one long float32 running sum per
+  lag.
+- With the kernels this fast, the transfers dominate end-to-end time. That is what the
+  streaming item on the roadmap (pinned memory, overlapping transfers with compute) addresses.
 
 ## Roadmap
 
@@ -100,7 +157,7 @@ See [`docs/ROADMAP.md`](docs/ROADMAP.md). Planned after the MVP (minimum viable 
 src/        C++17 / CUDA sources and the rfgpu CLI
 tools/      Python fixture generator and CPU reference
 tests/      pytest harness and fixtures
-docs/       profiling log, roadmap, screenshots
+docs/       profiling log, roadmap, Nsight Compute reports (docs/profiles)
 ```
 
 ## Working with AI agents
