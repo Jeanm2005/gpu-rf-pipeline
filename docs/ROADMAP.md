@@ -144,6 +144,13 @@ All tests must pass before M6 starts (correctness before speed).
 - [x] **[J]** Profile it and write the log entry. Negative results are logged too. Done by an
       agent (iteration 1).
 - [ ] **[J]** Read `fir_tiled_kernel` until every line can be explained without notes.
+- [x] **[A]** `--impl tiled_const` host side: taps copied to a `__constant__` array with
+      `cudaMemcpyToSymbol` (at most 8192 taps), same launch configuration as `tiled`, and
+      `fir_tiled_const_kernel` with a `// TODO` body. Motivated by iteration 1: the tap loop
+      still does one global load per multiply-add.
+- [x] **[J]** `fir_tiled_const_kernel` body, then profile it and log iteration 2. Written,
+      profiled, and logged by an agent at Jean's explicit request (2026-10-08).
+- [ ] **[J]** Read `fir_tiled_const_kernel` until every line can be explained without notes.
 - [ ] **[J+A]** Further iterations, each motivated by a profiler metric that an agent may point
       out (candidates: taps in constant memory, block-size sweep, structure-of-arrays layout for
       I and Q).
