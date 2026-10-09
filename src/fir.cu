@@ -132,6 +132,27 @@ __global__ void fir_tiled_kernel(const cf32* x, const float* taps, cf32* y, int 
     y[n].im = im;
 }
 
+// Bytes of dynamic shared memory for one tile: the block's own samples plus the halo. The whole
+// halo has to fit in one block's shared memory (48 KB by default, about 5800 taps with 256
+// threads per block). Longer filters need a variant that walks the taps in pieces.
+static std::size_t fir_tile_bytes(int num_taps, int block, const char* impl)
+{
+    const std::size_t tile_bytes =
+        (static_cast<std::size_t>(num_taps) - 1 + static_cast<std::size_t>(block)) * sizeof(cf32);
+    int device = 0;
+    CUDA_CHECK(cudaGetDevice(&device));
+    cudaDeviceProp prop{};
+    CUDA_CHECK(cudaGetDeviceProperties(&prop, device));
+    if (tile_bytes > prop.sharedMemPerBlock) {
+        throw std::runtime_error(std::string("fir ") + impl + ": " + std::to_string(num_taps)
+                                 + " taps need " + std::to_string(tile_bytes)
+                                 + " bytes of shared memory per block, more than the "
+                                 + std::to_string(prop.sharedMemPerBlock)
+                                 + " available; use --impl naive");
+    }
+    return tile_bytes;
+}
+
 static std::vector<cf32> fir_tiled(const std::vector<cf32>& x, const std::vector<float>& taps,
                                    Bench& bench)
 {
@@ -144,21 +165,7 @@ static std::vector<cf32> fir_tiled(const std::vector<cf32>& x, const std::vector
     // the block's own samples plus a halo of num_taps - 1 samples of history.
     const int block = 256;
     const int grid = (num_samples + block - 1) / block;
-    const std::size_t tile_bytes =
-        (static_cast<std::size_t>(num_taps) - 1 + static_cast<std::size_t>(block)) * sizeof(cf32);
-
-    // The whole halo has to fit in one block's shared memory (48 KB by default, about 5800
-    // taps at this block size). Longer filters need a variant that walks the taps in pieces.
-    int device = 0;
-    CUDA_CHECK(cudaGetDevice(&device));
-    cudaDeviceProp prop{};
-    CUDA_CHECK(cudaGetDeviceProperties(&prop, device));
-    if (tile_bytes > prop.sharedMemPerBlock) {
-        throw std::runtime_error("fir tiled: " + std::to_string(num_taps) + " taps need "
-                                 + std::to_string(tile_bytes) + " bytes of shared memory per "
-                                 "block, more than the " + std::to_string(prop.sharedMemPerBlock)
-                                 + " available; use --impl naive");
-    }
+    const std::size_t tile_bytes = fir_tile_bytes(num_taps, block, "tiled");
 
     // One-time setup, outside the timed region.
     DeviceBuffer<cf32> d_x(x.size());
@@ -179,6 +186,98 @@ static std::vector<cf32> fir_tiled(const std::vector<cf32>& x, const std::vector
     return y;
 }
 
+// --- tiled_const ----------------------------------------------------------------------------
+
+// Taps in constant memory. Every thread of a warp reads the same taps[k] in the same loop
+// iteration, which is the access pattern the constant cache is built for, and it takes the
+// tap loads off the global-memory path that iteration 1 still stalls on. Constant memory is
+// 64 KB per module; 8192 taps use half of it and are more than a tile can hold anyway.
+constexpr int kMaxConstTaps = 8192;
+__constant__ float c_taps[kMaxConstTaps];
+
+// Same tile as fir_tiled_kernel (see the layout there); the only difference is that taps come
+// from c_taps instead of a global-memory pointer.
+__global__ void fir_tiled_const_kernel(const cf32* x, cf32* y, int num_samples, int num_taps)
+{
+    extern __shared__ cf32 tile[];
+
+    const int halo = num_taps - 1;                    // history the first output reaches back to
+    const int block_start = blockIdx.x * blockDim.x;  // first output sample of this block
+    const int tile_len = halo + blockDim.x;
+    const int tile_start = block_start - halo;        // input index held in tile[0]; can be < 0
+
+    // Cooperative load, as in fir_tiled_kernel: coalesced, covers a halo longer than the
+    // block, and stores zeros for samples outside the input.
+    for (int i = threadIdx.x; i < tile_len; i += blockDim.x) {
+        const int m = tile_start + i;
+        if (m >= 0 && m < num_samples) {
+            tile[i] = x[m];
+        } else {
+            tile[i].re = 0.0f;
+            tile[i].im = 0.0f;
+        }
+    }
+    // Every thread reaches this barrier, including those whose output index is past
+    // num_samples: they loaded part of the tile that other threads read below.
+    __syncthreads();
+
+    const int n = block_start + threadIdx.x;  // output sample this thread computes
+    if (n >= num_samples) {
+        return;
+    }
+
+    // x[n - k] is tile[halo + threadIdx.x - k]; the tap now comes from constant memory.
+    const int newest = halo + threadIdx.x;
+    float re = 0.0f;
+    float im = 0.0f;
+    for (int k = 0; k < num_taps; ++k) {
+        const float tap = c_taps[k];
+        const cf32 sample = tile[newest - k];
+        re += tap * sample.re;
+        im += tap * sample.im;
+    }
+    y[n].re = re;
+    y[n].im = im;
+}
+
+static std::vector<cf32> fir_tiled_const(const std::vector<cf32>& x,
+                                         const std::vector<float>& taps, Bench& bench)
+{
+    const int num_samples = static_cast<int>(x.size());
+    const int num_taps = static_cast<int>(taps.size());
+    std::vector<cf32> y(x.size());
+
+    if (num_taps > kMaxConstTaps) {
+        throw std::runtime_error("fir tiled_const: " + std::to_string(num_taps)
+                                 + " taps, more than the " + std::to_string(kMaxConstTaps)
+                                 + " that fit in constant memory; use --impl naive");
+    }
+
+    // Launch configuration: identical to the tiled variant (256 threads per block, one tile of
+    // dynamic shared memory per block), so the two differ only in where the taps are read from.
+    const int block = 256;
+    const int grid = (num_samples + block - 1) / block;
+    const std::size_t tile_bytes = fir_tile_bytes(num_taps, block, "tiled_const");
+
+    // One-time setup, outside the timed region.
+    DeviceBuffer<cf32> d_x(x.size());
+    DeviceBuffer<cf32> d_y(y.size());
+
+    bench.run(
+        [&] {
+            d_x.upload(x.data(), x.size());
+            // The taps go to the constant-memory symbol instead of a device buffer.
+            CUDA_CHECK(cudaMemcpyToSymbol(c_taps, taps.data(), taps.size() * sizeof(float)));
+        },
+        [&] {
+            fir_tiled_const_kernel<<<grid, block, tile_bytes>>>(d_x.get(), d_y.get(),
+                                                                num_samples, num_taps);
+            CUDA_CHECK(cudaGetLastError());
+        },
+        [&] { d_y.download(y.data(), y.size()); });
+    return y;
+}
+
 // --- implementation table ------------------------------------------------------------------
 
 const std::vector<Impl<FirFn>>& fir_impls()
@@ -186,6 +285,7 @@ const std::vector<Impl<FirFn>>& fir_impls()
     static const std::vector<Impl<FirFn>> impls = {
         {"naive", "one thread per output sample, global memory only", fir_naive},
         {"tiled", "samples staged in a shared-memory tile with a halo", fir_tiled},
+        {"tiled_const", "tiled, with the taps in constant memory", fir_tiled_const},
     };
     return impls;
 }

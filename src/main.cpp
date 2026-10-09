@@ -44,7 +44,7 @@ template <class Fn>
 void print_impls(const char* op, const std::vector<Impl<Fn>>& impls)
 {
     for (std::size_t i = 0; i < impls.size(); ++i) {
-        std::fprintf(stderr, "  %-6s --impl %-8s %s%s\n", op, impls[i].name, impls[i].summary,
+        std::fprintf(stderr, "  %-6s --impl %-12s %s%s\n", op, impls[i].name, impls[i].summary,
                      i == 0 ? " (default)" : "");
     }
 }
