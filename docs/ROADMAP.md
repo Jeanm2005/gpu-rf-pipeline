@@ -51,11 +51,12 @@ The reference defines what every GPU operation must compute, so it comes before 
       deviation, host-to-device and device-to-host time reported separately from kernel time
       (`--bench N`, machine-readable output).
 - [x] **[A]** `.github/copilot-instructions.md` as a copy of `AGENTS.md`.
-- [ ] **[A]** CI: `.github/workflows/ci.yml` with the CPU tests (Python 3.10 and 3.14), the
+- [x] **[A]** CI: `.github/workflows/ci.yml` with the CPU tests (Python 3.10 and 3.14), the
       fixture reproducibility check, and a CUDA 13.4 build with warnings as errors in the
       `nvidia/cuda:13.4.3-devel-ubuntu26.04` container (added 2026-10-23). Hosted runners have
-      no GPU, so `tests/test_pipeline.py` skips there. Check it off once the first run on
-      GitHub passes. Running the GPU tests in CI would need a self-hosted runner on this machine.
+      no GPU, so `tests/test_pipeline.py` skips there. First run on GitHub passed on
+      2026-10-23 (run 40018228158). Running the GPU tests in CI would need a self-hosted runner
+      on this machine.
 
 #### Toolchain notes
 
