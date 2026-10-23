@@ -39,8 +39,10 @@ pytest -q tests/
 ```
 
 If the default compiler is too new for your CUDA Toolkit's `nvcc` (for example GCC 15 with
-CUDA 12.8), pass an older host compiler to CMake. The exact setup used on the development
-machine is in the "Toolchain notes" section of [`docs/ROADMAP.md`](docs/ROADMAP.md).
+CUDA 12.8), pass an older host compiler to CMake with `-DCMAKE_CXX_COMPILER` and
+`-DCMAKE_CUDA_HOST_COMPILER`. With CUDA 13.4 and GCC 15 no extra flags are needed. The
+development machine's setup is in the "Toolchain notes" section of
+[`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 Example:
 
@@ -105,7 +107,9 @@ channel. Host-to-device plus device-to-host transfers take about 25 ms for the F
 about 1.1 ms for the cross-correlation input, which is more than the fastest kernel in both
 cases.
 
-GPU: NVIDIA GeForce RTX 5080 Laptop GPU · CUDA: 12.8 · Driver: 572.76 (WSL2)
+Measured on: NVIDIA GeForce RTX 5080 Laptop GPU · CUDA: 12.8 · Driver: 572.76 (WSL2). The
+machine has since moved to CUDA 13.4 and driver 617.42; these numbers have not been
+re-measured there yet.
 
 ## What I built, what I profiled, what I changed
 
