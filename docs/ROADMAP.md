@@ -101,7 +101,8 @@ NVIDIA Control Panel (Developer, Manage GPU Performance Counters) as in M6.
 
 - [x] **[A]** `src/xcorr.cu` host side and kernel skeleton.
 - [x] **[J]** Naive time-domain kernel: one thread per lag.
-- [ ] **[J]** Read `xcorr_naive_kernel` until every line can be explained without notes.
+- [x] **[J]** Read `xcorr_naive_kernel` until every line can be explained without notes.
+      Done 2026-10-23.
 - [x] **[A]** Cross-correlation tests: full output against the reference, recovery of
       `true_delay_samples` from `ch0` / `ch1`, unequal input lengths, `short`, `zeros`.
 
