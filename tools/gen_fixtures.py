@@ -130,9 +130,10 @@ def generate(out: Path) -> list[str]:
     written.append("zeros")
 
     # --- Two-channel capture with a known delay ---------------------------------------------
-    # The source is white noise, not a tone: a tone's correlation is periodic, so its peak is
-    # ambiguous, while white noise correlates with itself at exactly one lag. Each channel
-    # gets independent receiver noise, as two real antennas would.
+    # The source is white noise, not a tone. A complex tone turns the delay into a phase, so
+    # |xcorr| follows only the overlap length and has no peak at the delay; a real tone has
+    # near-equal peaks one period apart. White noise correlates with itself at exactly one
+    # lag. Each channel gets independent receiver noise, as two real antennas would.
     seed = 2001
     rng = np.random.default_rng(seed)
     n = 16384
