@@ -1,0 +1,82 @@
+# Continuous integration on GitHub-hosted runners. These runners have no GPU, so CI checks
+# everything that does not need one:
+#
+#   python  CPU reference and fixture tests on the oldest and newest supported Python, and (on
+#           the newest) a check that tools/gen_fixtures.py still reproduces the committed
+#           fixtures byte for byte. tests/test_pipeline.py skips itself: there is no rfgpu.
+#   cuda    rfgpu compiles with CUDA 13.4 and GCC 15 (the development machine's toolchain),
+#           with every compiler warning treated as an error.
+#
+# The GPU tests (tests/test_pipeline.py) still have to be run locally before each commit.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    name: Python ${{ matrix.python }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.14"]  # oldest supported (AGENTS.md) and the development machine's
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run the CPU tests
+        run: pytest -q -rs tests/
+
+      # Only on the newest Python: the fixtures were generated with its NumPy and SciPy, and an
+      # older SciPy may design the filter taps differently in the last bit.
+      - name: Check that the committed fixtures are reproducible
+        if: matrix.python == '3.14'
+        run: |
+          python tools/gen_fixtures.py --out "$RUNNER_TEMP/fixtures"
+          diff -r tests/fixtures "$RUNNER_TEMP/fixtures"
+
+  cuda:
+    name: Build rfgpu (CUDA 13.4)
+    runs-on: ubuntu-24.04
+    container: nvidia/cuda:13.4.3-devel-ubuntu26.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends cmake g++ make
+
+      # No GPU to detect, so the architecture is given explicitly: compute capability 12.0 is
+      # the RTX 5080 Laptop GPU the measurements come from.
+      - name: Configure
+        run: >
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_CUDA_ARCHITECTURES=120
+          -DCMAKE_COMPILE_WARNING_AS_ERROR=ON
+
+      - name: Build
+        run: cmake --build build -j
+
+      # --help needs no GPU, so it at least shows the binary links and starts.
+      - name: Smoke test
+        run: ./build/rfgpu --help
