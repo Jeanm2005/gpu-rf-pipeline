@@ -113,9 +113,10 @@ channel. Host-to-device plus device-to-host transfers take about 25 ms for the F
 about 1.1 ms for the cross-correlation input, which is more than the fastest kernel in both
 cases.
 
-Measured on: NVIDIA GeForce RTX 5080 Laptop GPU · CUDA: 12.8 · Driver: 572.76 (WSL2). The
-machine has since moved to CUDA 13.4 and driver 617.42; these numbers have not been
-re-measured there yet.
+Measured on: NVIDIA GeForce RTX 5080 Laptop GPU · CUDA: 12.8 · Driver: 572.76 (WSL2). Re-timed
+after the move to CUDA 13.4 and driver 617.42: every time-domain kernel is within ±6 % of these
+numbers, inside the round-to-round noise of this laptop GPU, so the speedups hold (see the
+last entry in `docs/PROFILING_LOG.md`).
 
 ## What I built, what I profiled, what I changed
 

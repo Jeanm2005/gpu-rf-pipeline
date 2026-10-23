@@ -9,8 +9,9 @@ Iteration 0 was measured and written up by an agent at Jean's request (2026-10-0
 transfer times are CUDA events from `rfgpu --bench 20` (3 warm-up runs). Everything else is
 from Nsight Compute 2025.1.1 (`ncu --set full`), which profiles a single launch with its own
 overhead, so its "Duration" is longer than the CUDA-event time and is listed separately.
-Nsight Systems records no GPU-side data on this machine (see M6 in [`ROADMAP.md`](ROADMAP.md)),
-so there are no timeline screenshots. Inputs come from `python tools/gen_bench.py --out out/bench`.
+Nsight Systems recorded no GPU-side data on this machine with driver 572.76 (see M6 in
+[`ROADMAP.md`](ROADMAP.md)), so iterations 0 to 2 have no timeline screenshots. Since the update
+to driver 617.42 it does. Inputs come from `python tools/gen_bench.py --out out/bench`.
 
 ## Iteration 0 — FIR — naive baseline
 - GPU / driver / CUDA version: NVIDIA GeForce RTX 5080 Laptop GPU (compute capability 12.0,
@@ -267,6 +268,53 @@ conjugate-multiply kernel, and the inverse FFT; plan creation is outside the tim
   0.064 for `fft` and 0.72 for naive and tiled, whose single running float32 sum loses more
   precision as the inputs grow. All three recover the true delay of 37 samples at every size.
 - Screenshot: none. Report: `docs/profiles/xcorr_fft.ncu-rep`.
+
+## Re-measurement — all variants — CUDA 13.4 toolchain
+
+Not an optimization: the machine moved from driver 572.76 / CUDA 12.8 to driver 617.42 /
+CUDA 13.4, so every variant was re-timed to check that the numbers above still hold. Measured
+by an agent on 2026-10-23.
+
+- GPU / driver / CUDA version: NVIDIA GeForce RTX 5080 Laptop GPU (compute capability 12.0) /
+  617.42 / 13.4
+- Input size and parameters: same inputs and launch configurations as iterations 0 to 2
+  (`bench_tone.cf32` 2^24 samples with 63 and 1025 taps; `bench_ch0` / `bench_ch1` 2^18
+  samples each). `--bench 20`, 3 warm-up runs per measurement, five interleaved rounds over all
+  nine configurations. The table gives the median of the five round means, with the range of
+  the round means.
+
+| Configuration | Kernel time, CUDA 13.4 (median, range of 5 rounds) | CUDA 12.8 (iterations 0 to 2) | Change |
+|---|---|---|---|
+| FIR naive, 63 taps | 1.522 ms (1.485 to 1.559) | 1.559 ms | −2 % |
+| FIR tiled, 63 taps | 1.071 ms (1.020 to 1.105) | 1.130 ms | −5 % |
+| FIR tiled_const, 63 taps | 0.693 ms (0.652 to 0.856) | 0.655 ms | +6 % |
+| FIR naive, 1025 taps | 24.62 ms (24.17 to 33.90) | 23.74 ms | +4 % |
+| FIR tiled, 1025 taps | 15.26 ms (15.01 to 15.40) | 15.10 ms | +1 % |
+| FIR tiled_const, 1025 taps | 8.19 ms (8.11 to 8.25) | 8.22 ms | 0 % |
+| xcorr naive | 150.6 ms (149.3 to 152.0) | 150.6 ms | 0 % |
+| xcorr tiled | 69.31 ms (68.85 to 69.75) | 68.7 ms | +1 % |
+| xcorr fft | 0.112 ms (0.107 to 0.137) | 0.140 ms | −20 % (within noise) |
+
+- Transfer time (median of round means): FIR input host-to-device 11.6 to 12.2 ms and
+  device-to-host 13.4 to 14.6 ms, as before. Cross-correlation, time-domain variants:
+  host-to-device 0.56 to 0.57 ms, device-to-host 1.06 to 1.11 ms; `fft`: 0.34 and 0.52 ms
+  (the `fft` variant uploads into a padded buffer, so its upload is a different set of copies).
+- Achieved memory bandwidth and occupancy: not measured. `ncu` fails with `ERR_NVGPUCTRPERM`
+  again after the driver update, so the Windows setting for GPU performance counters has to
+  be re-enabled before Nsight Compute metrics can be collected.
+- Top bottleneck reported by the profiler: not measured (same reason).
+- Noise: the GPU's SM clock moved between about 1700 and 1980 MHz during the runs, with
+  `nvidia-smi` reporting power-cap clock limiting. One round in five can be far off (FIR naive
+  1025 taps: 33.90 ms against about 24.5 ms in the other four), and a first two-round pass,
+  not used here, had outliers of up to 1.6×. Single rounds on this laptop GPU are not
+  reliable; compare medians over several rounds.
+- What I changed and why: nothing in the code. Toolchain update only.
+- Result: kernel times are within ±6 % of the CUDA 12.8 numbers for every time-domain variant,
+  which is inside the round-to-round spread, and the `fft` difference is within its noise at
+  about 0.1 ms. The speedups in iterations 1 and 2 hold: with the medians above, FIR tiled is
+  1.42× (63 taps) and 1.61× (1025 taps) over naive, tiled_const 2.20× and 3.01×, xcorr tiled
+  2.17×.
+- Screenshot: none.
 
 ## Entry template
 
