@@ -71,7 +71,10 @@ History: the MVP measurements in `docs/PROFILING_LOG.md` and the README (iterati
 were taken on the earlier setup, driver 572.76 with CUDA 12.8.1. That driver supported CUDA up
 to 12.8 only, and CUDA 12.8's `nvcc` could not use GCC 15 or glibc 2.43, so it needed `g++-14`,
 a runfile install into `~/cuda-12.8`, and a patched `crt/math_functions.h`. That install has
-been removed. The numbers have not been re-measured on CUDA 13.4.
+been removed. Every variant was re-timed on CUDA 13.4 on 2026-10-23 (CUDA events only) and
+matches within the noise; see the last entry in `docs/PROFILING_LOG.md`. After the driver
+update `ncu` fails with `ERR_NVGPUCTRPERM` again: re-enable GPU performance counters in the
+NVIDIA Control Panel (Developer, Manage GPU Performance Counters) as in M6.
 
 ### M3. Spectrum (cuFFT)
 
