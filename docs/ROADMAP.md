@@ -38,8 +38,8 @@ The reference defines what every GPU operation must compute, so it comes before 
 
 ### M2. Toolchain and host scaffold
 
-- [x] **[J+A]** Install the CUDA Toolkit in WSL2: CUDA 12.8.1 in `~/cuda-12.8` (`nvcc`, cuFFT,
-      `nsys`, `ncu`), built with `g++-14`. See "Toolchain notes" below.
+- [x] **[J+A]** Install the CUDA Toolkit in WSL2: now CUDA 13.4 in `/usr/local/cuda-13.4`
+      (`nvcc`, cuFFT, `nsys`, `ncu`) with the default GCC 15. See "Toolchain notes" below.
 - [x] **[A]** `CMakeLists.txt`: C++17 and CUDA, `rfgpu` target, cuFFT linked, Release and Debug.
 - [x] **[A]** `src/check.hpp`: `CUDA_CHECK` and `CUFFT_CHECK` macros (file, line, error string).
 - [x] **[A]** `src/io.hpp` / `src/io.cpp`: read and write `.cf32` and `.f32`, with clear errors
@@ -52,33 +52,21 @@ The reference defines what every GPU operation must compute, so it comes before 
       (`--bench N`, machine-readable output).
 - [x] **[A]** `.github/copilot-instructions.md` as a copy of `AGENTS.md`.
 
-#### Toolchain notes (measured on this machine, 2026-10-07)
+#### Toolchain notes
 
-The machine is Ubuntu 26.04 (GCC 15, glibc 2.43) with Windows driver 572.76, and that
-combination has no CUDA Toolkit that works unmodified:
+Current setup (checked 2026-10-23): Ubuntu 26.04 (GCC 15, glibc 2.43) under WSL2, Windows
+driver 617.42, CUDA Toolkit 13.4 in `/usr/local/cuda-13.4` with its `bin` on `PATH`. The plain
+Quick start commands work with no extra flags:
+`cmake -S . -B build -DCMAKE_BUILD_TYPE=Release`. The build has no warnings and all 116 tests
+pass. `rfgpu info` reports compute capability 12.0, CUDA runtime 13.4, driver CUDA 13.4.
+Nsight Systems 2026.3 now records GPU-side data (`cuda_gpu_kern_sum`, `cuda_gpu_mem_time_sum`),
+which it did not on the old driver.
 
-- Driver 572.76 supports CUDA up to 12.8. A CUDA 13 runtime fails at start-up with "CUDA driver
-  version is insufficient for CUDA runtime version", and kernels compiled by a CUDA 13 `nvcc`
-  are rejected ("the provided PTX was compiled with an unsupported toolchain").
-- CUDA 12.8's `nvcc` cannot parse GCC 15's standard library headers, and its
-  `crt/math_functions.h` conflicts with glibc 2.43 (`rsqrt`, `rsqrtf`, `sinpi`, `sinpif`,
-  `cospi`, `cospif` declared without `noexcept`).
-
-What is installed (option chosen: keep the driver):
-
-- `g++-14` from apt, and CUDA Toolkit 12.8.1 from the runfile, installed without root into
-  `~/cuda-12.8`.
-- The runfile's installer needs `libxml2.so.2`, which Ubuntu 26.04 no longer ships, so with
-  `--silent` it exits without installing anything. It was run with `libxml2.so.2` and
-  `libicu74` taken from the Ubuntu 24.04 packages on `LD_LIBRARY_PATH`.
-- `~/cuda-12.8/include/crt/math_functions.h` is patched: `noexcept(true)` added to those six
-  declarations (original kept as `math_functions.h.bak`).
-- Configure with:
-  `cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=g++-14 -DCMAKE_CUDA_HOST_COMPILER=g++-14`
-  with `~/cuda-12.8/bin` on `PATH`.
-
-The alternative is to update the Windows NVIDIA driver to one that supports CUDA 13 and
-install CUDA Toolkit 13.x, whose `nvcc` accepts GCC 15 without these workarounds.
+History: the MVP measurements in `docs/PROFILING_LOG.md` and the README (iterations 0 to 2)
+were taken on the earlier setup, driver 572.76 with CUDA 12.8.1. That driver supported CUDA up
+to 12.8 only, and CUDA 12.8's `nvcc` could not use GCC 15 or glibc 2.43, so it needed `g++-14`,
+a runfile install into `~/cuda-12.8`, and a patched `crt/math_functions.h`. That install has
+been removed. The numbers have not been re-measured on CUDA 13.4.
 
 ### M3. Spectrum (cuFFT)
 
@@ -179,11 +167,12 @@ The three kernels and log entries below were written by an agent at Jean's expli
       in his own words.
 - [ ] **[J]** Screenshots in `docs/screenshots/`. None yet: the profiles were read from the
       `ncu` command line. Open the reports in `docs/profiles/` with the Nsight Compute GUI
-      (`ncu-ui`) to capture them.
+      (`ncu-ui`) to capture them. Nsight Systems timelines are possible now too (see the
+      toolchain notes).
 - [x] **[A]** Clean-clone check: the Quick start commands build and pass on a fresh checkout
       (2026-10-08: fresh clone, 116 tests pass, regenerated fixtures are byte-identical to the
-      committed ones). On this machine the configure step needs the `g++-14` flags from the
-      toolchain notes; plain `cmake -S . -B build` fails because CUDA 12.8 cannot use GCC 15.
+      committed ones). Rechecked 2026-10-23 on CUDA 13.4: plain `cmake -S . -B build` works
+      with GCC 15, 116 tests pass, fixtures still byte-identical.
 
 ## Stage 2: SigFlow compiler (`compiler/`)
 
