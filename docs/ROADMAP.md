@@ -92,7 +92,8 @@ NVIDIA Control Panel (Developer, Manage GPU Performance Counters) as in M6.
 - [x] **[A]** `src/fir.cu` host side: buffer allocation, transfers, launch site with a
       launch-configuration comment, and a kernel signature with a `// TODO` body.
 - [x] **[J]** Naive FIR kernel: one thread per output sample, taps read from global memory.
-- [ ] **[J]** Read `fir_naive_kernel` until every line can be explained without notes.
+- [x] **[J]** Read `fir_naive_kernel` until every line can be explained without notes.
+      Done 2026-10-23.
 - [x] **[A]** FIR tests: `identity`, `lowpass`, `lowpass_long` (filter longer than one tile),
       `tone_odd`, `short` (input shorter than the filter), `zeros`.
 
