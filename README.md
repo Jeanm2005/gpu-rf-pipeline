@@ -1,5 +1,7 @@
 # gpu-rf-pipeline
 
+[![CI](https://github.com/Jeanm2005/gpu-rf-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/Jeanm2005/gpu-rf-pipeline/actions/workflows/ci.yml)
+
 GPU signal processing for recorded radio data, written in CUDA C++ with a Python test harness.
 
 The pipeline takes complex IQ (in-phase/quadrature) captures, the raw output of a
@@ -71,6 +73,10 @@ ncu --set full -o docs/profiles/fir ./build/rfgpu fir --in out/bench/bench_tone.
   reference with explicit tolerances. It covers edge cases (lengths not divisible by the block
   size, short inputs, long filters, zero input) and checks that cross-correlation recovers the
   known delay.
+- CI on GitHub Actions (`.github/workflows/ci.yml`) runs the CPU tests on Python 3.10 and 3.14,
+  checks that the fixture generator reproduces the committed fixtures byte for byte, and builds
+  `rfgpu` with CUDA 13.4 and warnings as errors. Hosted runners have no GPU, so the GPU tests
+  run locally.
 
 Data format: `.cf32` files are interleaved little-endian float32 `[I, Q, I, Q, ...]` (SigMF
 `cf32_le` convention), each with a `.json` sidecar holding sample rate, seed, and ground truth.
