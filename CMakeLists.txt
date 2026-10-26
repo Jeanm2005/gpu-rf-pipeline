@@ -26,6 +26,7 @@ add_executable(rfgpu
   src/io.cpp
   src/bench.cpp
   src/spectrum.cu
+  src/magnitude.cu
   src/fir.cu
   src/xcorr.cu
 )

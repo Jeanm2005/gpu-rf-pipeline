@@ -24,6 +24,10 @@ struct Impl {
 // last frame zero-padded, unnormalized.
 std::vector<cf32> spectrum_cufft(const std::vector<cf32>& x, int nfft, Bench& bench);
 
+// magnitude.cu. mag[n] = |x[n]|. One real output per complex input; independent of framing, so
+// it runs over the whole buffer regardless of how spectrum() divided it into frames.
+std::vector<float> magnitude_cuda(const std::vector<cf32>& x, Bench& bench);
+
 // fir.cu. y[n] = sum_k taps[k] * x[n - k], x[m] = 0 for m < 0. Output length x.size().
 using FirFn = std::vector<cf32> (*)(const std::vector<cf32>& x, const std::vector<float>& taps,
                                     Bench& bench);

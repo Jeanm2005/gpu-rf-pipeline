@@ -14,5 +14,6 @@
 std::vector<cf32> read_cf32(const std::string& path);
 void write_cf32(const std::string& path, const std::vector<cf32>& samples);
 
-// .f32: plain float32 array (filter taps).
+// .f32: plain float32 array (filter taps, or a magnitude result).
 std::vector<float> read_f32(const std::string& path);
+void write_f32(const std::string& path, const std::vector<float>& values);

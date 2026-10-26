@@ -86,6 +86,30 @@ def test_spectrum_of_zeros_is_exactly_zero(tmp_path: Path) -> None:
     assert not np.any(actual)  # also rules out NaN
 
 
+# --- Magnitude -------------------------------------------------------------------------------
+# float32 sqrt of a sum of two squares; well-conditioned, so a tight tolerance is enough.
+MAGNITUDE_RTOL = 1e-6
+MAGNITUDE_ATOL = 1e-6
+
+
+@pytest.mark.parametrize("name", ["tone", "tone_odd", "short", "ch0"])
+def test_magnitude_matches_reference(tmp_path: Path, name: str) -> None:
+    out = tmp_path / "magnitude.f32"
+    rfgpu("magnitude", "--in", cf32(name), "--out", out)
+    expected = reference.magnitude(reference.read_cf32(cf32(name)))
+    actual = reference.read_f32(out)
+    assert actual.shape == expected.shape
+    np.testing.assert_allclose(actual, expected, rtol=MAGNITUDE_RTOL, atol=MAGNITUDE_ATOL)
+
+
+def test_magnitude_of_zeros_is_exactly_zero(tmp_path: Path) -> None:
+    out = tmp_path / "magnitude.f32"
+    rfgpu("magnitude", "--in", cf32("zeros"), "--out", out)
+    actual = reference.read_f32(out)
+    assert actual.shape == reference.read_cf32(cf32("zeros")).shape
+    assert not np.any(actual)
+
+
 # --- FIR -----------------------------------------------------------------------------------
 # Output values are of order 1. Summing up to 1025 float32 products in order gives an error
 # below 1e-6 on the fixtures (estimated on the CPU in float32); atol leaves a factor of 10.

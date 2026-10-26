@@ -33,19 +33,9 @@ std::vector<T> read_array(const std::string& path, const char* what)
     return data;
 }
 
-}  // namespace
-
-std::vector<cf32> read_cf32(const std::string& path)
-{
-    return read_array<cf32>(path, "complex float32 samples");
-}
-
-std::vector<float> read_f32(const std::string& path)
-{
-    return read_array<float>(path, "float32 values");
-}
-
-void write_cf32(const std::string& path, const std::vector<cf32>& samples)
+// Writes `data`, `count` elements of T, to `path`, creating the parent directory if needed.
+template <class T>
+void write_array(const std::string& path, const T* data, std::size_t count)
 {
     const std::filesystem::path parent = std::filesystem::path(path).parent_path();
     if (!parent.empty()) {
@@ -60,10 +50,31 @@ void write_cf32(const std::string& path, const std::vector<cf32>& samples)
     if (!file) {
         throw std::runtime_error("cannot open " + path + " for writing");
     }
-    file.write(reinterpret_cast<const char*>(samples.data()),
-               static_cast<std::streamsize>(samples.size() * sizeof(cf32)));
+    file.write(reinterpret_cast<const char*>(data), static_cast<std::streamsize>(count * sizeof(T)));
     file.close();
     if (!file) {
         throw std::runtime_error("failed while writing " + path);
     }
+}
+
+}  // namespace
+
+std::vector<cf32> read_cf32(const std::string& path)
+{
+    return read_array<cf32>(path, "complex float32 samples");
+}
+
+std::vector<float> read_f32(const std::string& path)
+{
+    return read_array<float>(path, "float32 values");
+}
+
+void write_cf32(const std::string& path, const std::vector<cf32>& samples)
+{
+    write_array(path, samples.data(), samples.size());
+}
+
+void write_f32(const std::string& path, const std::vector<float>& values)
+{
+    write_array(path, values.data(), values.size());
 }

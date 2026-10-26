@@ -1,8 +1,9 @@
 // rfgpu: command-line front end for the GPU operations.
 //
-//   rfgpu spectrum --in x.cf32 --out spec.cf32 [--nfft 1024]
-//   rfgpu fir      --in x.cf32 --taps h.f32 --out y.cf32 [--impl naive]
-//   rfgpu xcorr    --a a.cf32 --b b.cf32 --out r.cf32 [--impl naive]
+//   rfgpu spectrum  --in x.cf32 --out spec.cf32 [--nfft 1024]
+//   rfgpu fir       --in x.cf32 --taps h.f32 --out y.cf32 [--impl naive]
+//   rfgpu xcorr     --a a.cf32 --b b.cf32 --out r.cf32 [--impl naive]
+//   rfgpu magnitude --in x.cf32 --out mag.f32
 //   rfgpu info
 //
 // Exit status: 0 on success, 1 on a runtime error (file, CUDA, cuFFT), 2 on a usage error.
@@ -53,12 +54,13 @@ void print_usage()
 {
     std::fprintf(stderr,
         "usage:\n"
-        "  rfgpu spectrum --in X.cf32 --out OUT.cf32 [--nfft N]\n"
-        "  rfgpu fir      --in X.cf32 --taps H.f32 --out OUT.cf32 [--impl NAME]\n"
-        "  rfgpu xcorr    --a A.cf32 --b B.cf32 --out OUT.cf32 [--impl NAME]\n"
-        "  rfgpu info     print the GPU, CUDA versions, and implementations as JSON\n"
+        "  rfgpu spectrum  --in X.cf32 --out OUT.cf32 [--nfft N]\n"
+        "  rfgpu fir       --in X.cf32 --taps H.f32 --out OUT.cf32 [--impl NAME]\n"
+        "  rfgpu xcorr     --a A.cf32 --b B.cf32 --out OUT.cf32 [--impl NAME]\n"
+        "  rfgpu magnitude --in X.cf32 --out OUT.f32\n"
+        "  rfgpu info      print the GPU, CUDA versions, and implementations as JSON\n"
         "\n"
-        "benchmark options (spectrum, fir, xcorr):\n"
+        "benchmark options (spectrum, magnitude, fir, xcorr):\n"
         "  --bench N      time N runs with CUDA events and print the result as JSON\n"
         "  --warmup W     untimed runs before measuring (default 3, needs --bench)\n"
         "\n"
@@ -175,14 +177,13 @@ std::string gpu_name()
     return prop.name;
 }
 
-// Writes the result and reports: one line for a normal run, one JSON object for --bench.
-void finish(const Args& args, const char* op, const char* impl, std::size_t num_in,
-            const std::vector<cf32>& out, const Bench& bench)
+// Reports the result: one line for a normal run, one JSON object for --bench. Shared by every
+// op regardless of the output's element type, which only decides how it was written to `path`.
+void report(const Args& args, const char* op, const char* impl, std::size_t num_in,
+            std::size_t num_out, const std::string& path, const Bench& bench)
 {
-    const std::string& path = args.required("--out");
-    write_cf32(path, out);
     if (!args.has("--bench")) {
-        std::printf("%s[%s]: %zu samples in, %zu out -> %s\n", op, impl, num_in, out.size(),
+        std::printf("%s[%s]: %zu samples in, %zu out -> %s\n", op, impl, num_in, num_out,
                     path.c_str());
         return;
     }
@@ -192,9 +193,26 @@ void finish(const Args& args, const char* op, const char* impl, std::size_t num_
                 "\"h2d_ms\": {\"mean\": %.6f, \"std\": %.6f}, "
                 "\"kernel_ms\": {\"mean\": %.6f, \"std\": %.6f}, "
                 "\"d2h_ms\": {\"mean\": %.6f, \"std\": %.6f}}\n",
-                op, impl, gpu_name().c_str(), num_in, out.size(), bench.config().runs,
+                op, impl, gpu_name().c_str(), num_in, num_out, bench.config().runs,
                 bench.config().warmup, r.h2d.mean_ms, r.h2d.std_ms, r.kernel.mean_ms,
                 r.kernel.std_ms, r.d2h.mean_ms, r.d2h.std_ms);
+}
+
+// Writes the result, then reports. One overload per output file format (.cf32 or .f32).
+void finish(const Args& args, const char* op, const char* impl, std::size_t num_in,
+            const std::vector<cf32>& out, const Bench& bench)
+{
+    const std::string& path = args.required("--out");
+    write_cf32(path, out);
+    report(args, op, impl, num_in, out.size(), path, bench);
+}
+
+void finish(const Args& args, const char* op, const char* impl, std::size_t num_in,
+            const std::vector<float>& out, const Bench& bench)
+{
+    const std::string& path = args.required("--out");
+    write_f32(path, out);
+    report(args, op, impl, num_in, out.size(), path, bench);
 }
 
 int run_spectrum(int argc, char** argv)
@@ -208,6 +226,20 @@ int run_spectrum(int argc, char** argv)
     // The output is the input padded up to a whole number of frames.
     require_int_range(x.size() + static_cast<std::size_t>(nfft), "padded spectrum input");
     finish(args, "spectrum", "cufft", x.size(), spectrum_cufft(x, nfft, bench), bench);
+    return 0;
+}
+
+int run_magnitude(int argc, char** argv)
+{
+    const Args args(argc, argv, {"--in", "--out", "--bench", "--warmup"});
+    args.required("--out");
+    Bench bench(bench_config(args));
+
+    const std::vector<cf32> x = read_cf32(args.required("--in"));
+    require_int_range(x.size(), "magnitude input");
+    // An empty input has nothing to launch a kernel for.
+    const std::vector<float> mag = x.empty() ? std::vector<float>() : magnitude_cuda(x, bench);
+    finish(args, "magnitude", "elementwise", x.size(), mag, bench);
     return 0;
 }
 
@@ -270,7 +302,8 @@ int run_info(int argc, char** argv)
     // driver's own version number (nvidia-smi prints that one).
     std::printf("{\"gpu\": \"%s\", \"compute_capability\": \"%d.%d\", \"memory_mb\": %zu, "
                 "\"cuda_runtime\": \"%s\", \"cuda_driver\": \"%s\", "
-                "\"impls\": {\"spectrum\": [\"cufft\"], \"fir\": [\"%s\"], \"xcorr\": [\"%s\"]}}\n",
+                "\"impls\": {\"spectrum\": [\"cufft\"], \"magnitude\": [\"elementwise\"], "
+                "\"fir\": [\"%s\"], \"xcorr\": [\"%s\"]}}\n",
                 prop.name, prop.major, prop.minor, prop.totalGlobalMem / (1024 * 1024),
                 version_string(runtime).c_str(), version_string(driver).c_str(),
                 impl_names(fir_impls(), "\", \"").c_str(),
@@ -285,6 +318,7 @@ int main(int argc, char** argv)
     try {
         const std::string op = argc > 1 ? argv[1] : "";
         if (op == "spectrum") return run_spectrum(argc, argv);
+        if (op == "magnitude") return run_magnitude(argc, argv);
         if (op == "fir") return run_fir(argc, argv);
         if (op == "xcorr") return run_xcorr(argc, argv);
         if (op == "info") return run_info(argc, argv);
