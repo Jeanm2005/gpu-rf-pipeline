@@ -10,9 +10,17 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE Debug CACHE STRING "Build type" FORCE)
 endif()
 
-# No sigflowc target yet: src/main.cpp and the compiler passes land once the token, AST, and IR
-# data structures are designed (see ../docs/ROADMAP.md, phase A). This file wires up the test
-# infrastructure first so that work can start test-first.
+# Grows to hold every compiler pass (diagnostics now; lexer, parser, sema, IR builder,
+# scheduler, ... later), linked by both the sigflowc executable (once src/main.cpp exists) and
+# the unit tests below.
+add_library(sigflow_core STATIC
+  src/diagnostics.cpp
+)
+target_include_directories(sigflow_core PUBLIC include)
+
+# No sigflowc executable yet: src/main.cpp lands once the token, AST, and IR data structures are
+# designed (see ../docs/ROADMAP.md, phase A). This file wires up the test infrastructure first
+# so that work can start test-first.
 option(SIGFLOWC_BUILD_TESTS "Build sigflowc unit and golden tests" ON)
 
 if(SIGFLOWC_BUILD_TESTS)

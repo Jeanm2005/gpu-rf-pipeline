@@ -9,9 +9,9 @@ FetchContent_MakeAvailable(googletest)
 include(GoogleTest)
 
 add_executable(sigflowc_unit_tests
-  unit/placeholder_test.cpp
+  unit/diagnostics_test.cpp
 )
-target_link_libraries(sigflowc_unit_tests PRIVATE GTest::gtest_main)
+target_link_libraries(sigflowc_unit_tests PRIVATE GTest::gtest_main sigflow_core)
 gtest_discover_tests(sigflowc_unit_tests)
 
 # Golden tests: compare a command's stdout, byte for byte, against tests/golden/<name>.expected.
