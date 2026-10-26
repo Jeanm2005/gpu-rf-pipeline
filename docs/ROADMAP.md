@@ -193,8 +193,12 @@ between kernel work and compiler work. Phase C needs the MVP profiling numbers a
 
 ### C-A. Phase A: front end, IR, scheduling, script backend
 
-- [ ] **[A]** `compiler/CMakeLists.txt`, GoogleTest, the golden-test runner, and
-      `--update-golden`.
+- [x] **[A]** `compiler/CMakeLists.txt`, GoogleTest, the golden-test runner, and
+      `--update-golden`. Done 2026-10-26: `add_golden_test()` (`compiler/cmake/`) registers a
+      CTest case per golden file plus an `update_golden_<name>` target; GoogleTest is wired via
+      `FetchContent` with a placeholder test. Validated against `cmake -E echo` since `sigflowc`
+      doesn't exist yet. The `--update-golden tests/golden` form on the binary itself (per
+      `compiler/AGENTS.md`'s quick start) is still pending; it lands with `src/main.cpp` below.
 - [ ] **[J]** Design the token, AST, and IR data structures. **[A]** fills in header boilerplate
       once they are designed.
 - [ ] **[A]** `src/main.cpp` (`--emit=tokens|ast|ir|schedule|json`, `-o`) and the diagnostics
