@@ -202,7 +202,11 @@ between kernel work and compiler work. Phase C needs the MVP profiling numbers a
 - [ ] **[J]** Design the token, AST, and IR data structures. **[A]** fills in header boilerplate
       once they are designed.
 - [ ] **[A]** `src/main.cpp` (`--emit=tokens|ast|ir|schedule|json`, `-o`) and the diagnostics
-      printer (file, line, column, source line with a caret).
+      printer (file, line, column, source line with a caret). Diagnostics done 2026-10-26:
+      `sigflow::DiagnosticEngine` and `format_diagnostic()` in the new `sigflow_core` library
+      (`compiler/include/sigflow/diagnostics.hpp`, `compiler/src/diagnostics.cpp`); `src/main.cpp`
+      itself still waits on the token/AST/IR design below, since `--emit` has nothing to call
+      without it.
 - [ ] **[J]** `src/lexer.cpp`. **[A]** lexer unit tests and goldens (unterminated string, stray
       character, empty program).
 - [ ] **[J]** `src/parser.cpp`, recursive descent. Grammar changes are recorded in
@@ -214,8 +218,9 @@ between kernel work and compiler work. Phase C needs the MVP profiling numbers a
 - [ ] **[J]** `src/schedule.cpp`: Kahn's algorithm, cycle detection, source-order tie-breaking.
       **[A]** unit tests on hand-built graphs.
 - [ ] **[J+A]** Dead-node elimination with `--no-dce`.
-- [ ] **[A]** `rfgpu` gains a magnitude output (`frames<f32, N>`), which `two_channel.sf` needs
-      and the MVP CLI does not have.
+- [x] **[A]** `rfgpu` gains a magnitude output (`frames<f32, N>`), which `two_channel.sf` needs
+      and the MVP CLI does not have. Done 2026-10-26: `rfgpu magnitude --in X.cf32 --out OUT.f32`,
+      one thread per sample, tested against `reference.magnitude()`.
 - [ ] **[A]** `src/backend_script.cpp`: emits a script of `rfgpu` commands.
 - [ ] **[A]** `examples/*.sf` and `tests/e2e`: compile, run on the fixtures, compare to
       `tools/reference.py`.
