@@ -13,6 +13,7 @@ add_executable(sigflowc_unit_tests
   unit/diagnostics_test.cpp
   unit/ir_builder_test.cpp
   unit/lexer_test.cpp
+  unit/liveness_test.cpp
   unit/parser_test.cpp
   unit/schedule_test.cpp
   unit/sema_test.cpp

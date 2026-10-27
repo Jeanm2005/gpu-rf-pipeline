@@ -1,7 +1,7 @@
 // sigflowc: the SigFlow compiler command line.
 //
 //   sigflowc PROGRAM.sf -o run.sh                  phase A backend: a script of rfgpu commands
-//   sigflowc PROGRAM.sf --emit=tokens|ast|check|ir|schedule|json|script
+//   sigflowc PROGRAM.sf --emit=tokens|ast|check|ir|schedule|liveness|json|script
 //   sigflowc --update-golden tests/golden
 //
 // See compiler/README.md for the language and compiler/AGENTS.md for every --emit mode planned.
@@ -20,7 +20,7 @@ namespace {
 void print_usage(std::ostream& out)
 {
     out << "usage:\n"
-           "  sigflowc PROGRAM.sf [--emit=MODE] [-o FILE] [--no-dce]\n"
+           "  sigflowc PROGRAM.sf [--emit=MODE] [-o FILE] [--no-dce] [--no-reuse]\n"
            "  sigflowc --update-golden DIR    regenerate DIR/*.expected from DIR/*.sf\n"
            "\n"
            "--emit modes:\n"
@@ -30,13 +30,18 @@ void print_usage(std::ostream& out)
            "  check     run every check, print only diagnostics\n"
            "  ir        graph IR, one node per line\n"
            "  schedule  launch order (topological sort, ties broken by source order)\n"
+           "  liveness  live range and buffer slot of every value, and planned GPU memory\n"
            "  json      graph IR as JSON, for the DAG viewer\n"
            "\n"
            "-o FILE     write the output to FILE instead of stdout (only if compiling succeeds);\n"
            "            a script written this way is made executable\n"
            "\n"
            "passes:\n"
-           "  --no-dce  keep nodes that no emit depends on\n";
+           "  --no-dce    keep nodes that no emit depends on\n"
+           "  --no-reuse  give every value its own buffer instead of reusing dead ones\n"
+           "\n"
+           "--input-dir=DIR   resolve capture paths against DIR when sizing buffers for\n"
+           "                  --emit=liveness (default: the current directory)\n";
 }
 
 // Writes `text` to `path`, creating its directory and marking it executable when it is a script.

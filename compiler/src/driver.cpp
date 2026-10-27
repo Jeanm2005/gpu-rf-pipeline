@@ -4,6 +4,7 @@
 #include "sigflow/diagnostics.hpp"
 #include "sigflow/ir.hpp"
 #include "sigflow/lexer.hpp"
+#include "sigflow/liveness.hpp"
 #include "sigflow/parser.hpp"
 #include "sigflow/passes.hpp"
 #include "sigflow/sema.hpp"
@@ -61,6 +62,10 @@ bool parse_emit(const std::string& value, EmitMode& mode)
         mode = EmitMode::Schedule;
         return true;
     }
+    if (value == "liveness") {
+        mode = EmitMode::Liveness;
+        return true;
+    }
     if (value == "json") {
         mode = EmitMode::Json;
         return true;
@@ -105,11 +110,15 @@ bool parse_options(const std::vector<std::string>& args, Options& options, std::
         } else if (arg.compare(0, 7, "--emit=") == 0) {
             if (!parse_emit(arg.substr(7), options.emit)) {
                 err << "sigflowc: error: unknown --emit mode '" << arg.substr(7)
-                    << "' (available: tokens, ast, check, ir, schedule, json, script)\n";
+                    << "' (available: tokens, ast, check, ir, schedule, liveness, json, script)\n";
                 return false;
             }
         } else if (arg == "--no-dce") {
             options.dce = false;
+        } else if (arg == "--no-reuse") {
+            options.reuse = false;
+        } else if (arg.compare(0, 12, "--input-dir=") == 0) {
+            options.input_dir = arg.substr(12);
         } else if (!arg.empty() && arg[0] == '-') {
             err << "sigflowc: error: unknown option '" << arg << "'\n";
             return false;
@@ -202,8 +211,13 @@ int compile(const Options& options, std::ostream& out, std::ostream& err)
         return kExitCompileError;
     }
     diagnostics.print(err);
+    const Liveness liveness = analyze_liveness(graph, order, options.reuse);
 
     switch (options.emit) {
+    case EmitMode::Liveness:
+        print_liveness(graph, liveness, value_bytes(graph, options.input_dir), options.input_dir,
+                       out);
+        break;
     case EmitMode::Json:
         print_ir_json(graph, out);
         break;
@@ -247,29 +261,33 @@ int update_golden(const std::string& dir, std::ostream& log)
     }
     std::sort(programs.begin(), programs.end());
 
+    // Same command line the CMake runner uses, run from `dir` like it: the bare file name, so
+    // paths in diagnostics don't depend on where the repository is checked out, and relative
+    // flags such as --input-dir resolve the same way.
+    const fs::path previous = fs::current_path();
+    fs::current_path(dir);
     for (const fs::path& program : programs) {
+        const std::string name = program.filename().string();
         std::string text;
-        read_file(program.string(), text);
+        read_file(name, text);
         const std::string first_line = text.substr(0, text.find('\n'));
 
-        // Same command line the CMake runner uses: the bare file name, run from `dir`, so the
-        // paths in diagnostics don't depend on where the repository is checked out.
         std::vector<std::string> args = golden_args(first_line);
-        args.push_back(program.filename().string());
+        args.push_back(name);
         Options options;
         std::ostringstream combined;
         int code = kExitUsage;
         if (parse_options(args, options, combined)) {
-            options.input_path = program.string();
             code = compile(options, combined, combined);
         }
 
         fs::path expected = program;
         expected.replace_extension(".expected");
-        std::ofstream file(expected, std::ios::binary);
+        std::ofstream file(expected.filename(), std::ios::binary);
         file << golden_text(combined.str(), code);
         log << "updated " << expected.string() << "\n";
     }
+    fs::current_path(previous);
     return kExitOk;
 }
 

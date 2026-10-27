@@ -16,6 +16,7 @@ enum class EmitMode {
     Check,  // run every check and print nothing; the exit code says whether it passed
     Ir,
     Schedule,
+    Liveness,  // live ranges, buffer slots, and planned GPU memory
     Json,
     Script,  // the phase A backend: a bash script of rfgpu commands (the default)
 };
@@ -25,7 +26,10 @@ struct Options {
     std::string display_path;  // what diagnostics call it; usually the same as input_path
     EmitMode emit = EmitMode::Script;
     std::string output_path;   // -o: write the output here instead of stdout (src/main.cpp)
-    bool dce = true;  // dead-node elimination; --no-dce turns it off
+    bool dce = true;    // dead-node elimination; --no-dce turns it off
+    bool reuse = true;  // buffer reuse after liveness analysis; --no-reuse turns it off
+    // --input-dir=DIR: where capture paths resolve when sizing buffers for --emit=liveness.
+    std::string input_dir = ".";
 };
 
 // Exit codes shared by the driver and src/main.cpp.
