@@ -260,7 +260,9 @@ between kernel work and compiler work. Phase C needs the MVP profiling numbers a
 - [x] **[J]** `src/liveness.cpp`: last use of each buffer, and buffer reuse. **[A]** unit tests.
       Done 2026-10-27: live ranges on the schedule, first-fit slot assignment that frees a slot
       the step after its value's last read (`--no-reuse` turns reuse off), buffer sizes from
-      the capture files (`--input-dir`), and `--emit=liveness`. 9 unit tests, 3 goldens.
+      the capture files (`--input-dir`), and `--emit=liveness`. 9 unit tests, 3 goldens. The script backend writes
+      intermediates to one work file per slot, and the GPU end-to-end tests run every example
+      with and without reuse (10 tests, all passing).
 - [ ] **[J+A]** Measure peak GPU memory with and without reuse.
 - [ ] **[A]** `viewer/` scaffolding (TypeScript build, JSON loading).
 - [ ] **[J]** Graph layout and rendering of the IR before and after each pass.

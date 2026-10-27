@@ -97,19 +97,23 @@ def evaluate(graph: dict, workdir: Path) -> dict[int, np.ndarray]:
     return values
 
 
-def compile_and_run(example: Path, workdir: Path) -> dict:
-    """Compiles `example`, runs its script in `workdir`, and returns its IR as JSON."""
+def compile_and_run(example: Path, workdir: Path, *flags: str) -> dict:
+    """Compiles `example` with `flags`, runs its script in `workdir`, and returns its IR as
+    JSON."""
     (workdir / "fixtures").symlink_to(FIXTURES, target_is_directory=True)
     script = workdir / "run.sh"
-    run(SIGFLOWC, example, "-o", script)
+    run(SIGFLOWC, example, *flags, "-o", script)
     graph = json.loads(run(SIGFLOWC, example, "--emit=json"))
     run("bash", script, cwd=workdir, env={**os.environ, "RFGPU": str(RFGPU)})
     return graph
 
 
+# With reuse, a later value overwrites a dead value's buffer file, so a liveness bug that frees a
+# buffer too early shows up here as a wrong output; --no-reuse is the baseline.
+@pytest.mark.parametrize("flags", [(), ("--no-reuse",)], ids=["reuse", "no_reuse"])
 @pytest.mark.parametrize("example", EXAMPLES, ids=[e.stem for e in EXAMPLES])
-def test_example_matches_reference(tmp_path: Path, example: Path) -> None:
-    graph = compile_and_run(example, tmp_path)
+def test_example_matches_reference(tmp_path: Path, example: Path, flags: tuple[str, ...]) -> None:
+    graph = compile_and_run(example, tmp_path, *flags)
     nodes = {node["id"]: node for node in graph["nodes"]}
     sources = {edge["to"]: edge["from"] for edge in graph["edges"]
                if nodes[edge["to"]]["op"] == "emit"}

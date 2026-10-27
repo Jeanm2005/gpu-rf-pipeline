@@ -222,7 +222,7 @@ int compile(const Options& options, std::ostream& out, std::ostream& err)
         print_ir_json(graph, out);
         break;
     case EmitMode::Script:
-        emit_script(graph, order, options.display_path, out);
+        emit_script(graph, order, liveness, options.display_path, out);
         break;
     case EmitMode::Schedule:
         for (std::size_t step = 0; step < order.order.size(); ++step) {

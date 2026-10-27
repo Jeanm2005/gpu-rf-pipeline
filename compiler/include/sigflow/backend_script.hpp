@@ -2,9 +2,12 @@
 
 // Phase A backend: turns the scheduled IR into a bash script of rfgpu commands, one per node,
 // in launch order. Intermediate values live in a temporary directory that the script removes on
-// exit; each emit copies its value to the requested path.
+// exit, one file per buffer slot from liveness analysis, so a dead value's file is overwritten
+// by a later one (all distinct with --no-reuse). Each emit copies its value to the requested
+// path.
 
 #include "sigflow/ir.hpp"
+#include "sigflow/liveness.hpp"
 #include "sigflow/passes.hpp"
 
 #include <ostream>
@@ -14,7 +17,7 @@ namespace sigflow {
 
 // `program_name` only appears in the header comment. The script runs `$RFGPU` (default:
 // `rfgpu` on PATH), and relative paths resolve against the directory it is run from.
-void emit_script(const Graph& graph, const Schedule& schedule, const std::string& program_name,
-                 std::ostream& out);
+void emit_script(const Graph& graph, const Schedule& schedule, const Liveness& liveness,
+                 const std::string& program_name, std::ostream& out);
 
 }  // namespace sigflow

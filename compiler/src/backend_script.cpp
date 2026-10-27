@@ -19,13 +19,15 @@ std::string quote(const std::string& text)
 }
 
 // Where a node's value is on disk while the script runs. A capture is read in place; every
-// other value is a file in $WORK named after its node id.
-std::string value_path(const Node& node)
+// other value lives in the file of its buffer slot, $WORK/b<slot>, which later values reuse once
+// liveness says it is dead (rfgpu does not look at file extensions).
+std::string value_path(const Liveness& liveness, const Node& node)
 {
     if (node.op == Op::Capture) {
         return quote(node.path);
     }
-    return "\"$WORK/n" + std::to_string(node.id) + file_extension(node.type) + "\"";
+    const int slot = liveness.slot_of[static_cast<std::size_t>(node.id)];
+    return "\"$WORK/b" + std::to_string(slot) + "\"";
 }
 
 std::string parent_directory(const std::string& path)
@@ -36,11 +38,12 @@ std::string parent_directory(const std::string& path)
 
 }  // namespace
 
-void emit_script(const Graph& graph, const Schedule& schedule, const std::string& program_name,
-                 std::ostream& out)
+void emit_script(const Graph& graph, const Schedule& schedule, const Liveness& liveness,
+                 const std::string& program_name, std::ostream& out)
 {
-    const auto node_at = [&graph](NodeId id) -> const Node& {
-        return graph.nodes[static_cast<std::size_t>(id)];
+    // Path of a node's i-th input.
+    const auto input = [&](const Node& node, std::size_t i) {
+        return value_path(liveness, graph.nodes[static_cast<std::size_t>(node.inputs[i])]);
     };
 
     out << "#!/usr/bin/env bash\n"
@@ -55,38 +58,36 @@ void emit_script(const Graph& graph, const Schedule& schedule, const std::string
            "trap 'rm -rf \"$WORK\"' EXIT\n";
 
     for (NodeId id : schedule.order) {
-        const Node& node = node_at(id);
+        const Node& node = graph.nodes[static_cast<std::size_t>(id)];
         if (node.op == Op::Capture) {
             continue;  // nothing to run: the file is read where it is
         }
         out << "\n# " << format_node(node) << "\n";
-        const std::string result = value_path(node);
+        const std::string result = value_path(liveness, node);
         switch (node.op) {
         case Op::Capture:
             break;
         case Op::Fir:
-            out << "\"$RFGPU\" fir --in " << value_path(node_at(node.inputs[0])) << " --taps "
-                << quote(node.taps) << " --out " << result << "\n";
-            break;
-        case Op::Fft:
-            out << "\"$RFGPU\" spectrum --in " << value_path(node_at(node.inputs[0]))
-                << " --nfft " << node.n << " --out " << result << "\n";
-            break;
-        case Op::Magnitude:
-            out << "\"$RFGPU\" magnitude --in " << value_path(node_at(node.inputs[0]))
+            out << "\"$RFGPU\" fir --in " << input(node, 0) << " --taps " << quote(node.taps)
                 << " --out " << result << "\n";
             break;
+        case Op::Fft:
+            out << "\"$RFGPU\" spectrum --in " << input(node, 0) << " --nfft " << node.n
+                << " --out " << result << "\n";
+            break;
+        case Op::Magnitude:
+            out << "\"$RFGPU\" magnitude --in " << input(node, 0) << " --out " << result << "\n";
+            break;
         case Op::Xcorr:
-            out << "\"$RFGPU\" xcorr --a " << value_path(node_at(node.inputs[0])) << " --b "
-                << value_path(node_at(node.inputs[1])) << " --out " << result << "\n";
+            out << "\"$RFGPU\" xcorr --a " << input(node, 0) << " --b " << input(node, 1)
+                << " --out " << result << "\n";
             break;
         case Op::Emit: {
             const std::string directory = parent_directory(node.path);
             if (!directory.empty()) {
                 out << "mkdir -p " << quote(directory) << "\n";
             }
-            out << "cp " << value_path(node_at(node.inputs[0])) << " " << quote(node.path)
-                << "\n";
+            out << "cp " << input(node, 0) << " " << quote(node.path) << "\n";
             break;
         }
         }
