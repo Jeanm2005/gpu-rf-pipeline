@@ -1,0 +1,9 @@
+# args: --emit=schedule
+# Written bottom-up: the IR ids follow first use, the schedule still follows dependencies
+# first and source order second.
+emit corr -> "out/xcorr.cf32"
+corr = xcorr(lb, la)
+lb   = b |> fir(taps="fixtures/lowpass.f32")
+la   = a |> fir(taps="fixtures/lowpass.f32")
+b    = capture("fixtures/ch1.cf32", rate=2.4e6)
+a    = capture("fixtures/ch0.cf32", rate=2.4e6)

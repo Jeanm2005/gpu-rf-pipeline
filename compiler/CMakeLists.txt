@@ -18,6 +18,7 @@ add_library(sigflow_core STATIC
   src/ir_builder.cpp
   src/lexer.cpp
   src/parser.cpp
+  src/schedule.cpp
   src/sema.cpp
   src/source.cpp
 )

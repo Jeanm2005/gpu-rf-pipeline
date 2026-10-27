@@ -15,6 +15,7 @@ enum class EmitMode {
     Ast,
     Check,  // run every check and print nothing; the exit code says whether it passed
     Ir,
+    Schedule,
     Json,
 };
 

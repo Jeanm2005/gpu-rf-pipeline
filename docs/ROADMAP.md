@@ -230,8 +230,12 @@ between kernel work and compiler work. Phase C needs the MVP profiling numbers a
       and `--emit=json`; pipes become ordinary inputs, a shared binding is one node, an alias
       adds none. 5 unit tests, 3 goldens (`ir_two_channel`, `ir_out_of_order`,
       `json_two_channel`).
-- [ ] **[J]** `src/schedule.cpp`: Kahn's algorithm, cycle detection, source-order tie-breaking.
-      **[A]** unit tests on hand-built graphs.
+- [x] **[J]** `src/schedule.cpp`: Kahn's algorithm, cycle detection, source-order tie-breaking.
+      **[A]** unit tests on hand-built graphs. Done 2026-10-27: `--emit=schedule`; the ready
+      set is ordered by source line, column, then id; nodes on or behind a cycle are returned
+      as unscheduled (sema already rejects cyclic programs, so the driver reports that case as
+      an internal error). 8 unit tests on hand-built graphs (chains, ties, a diamond, duplicate
+      edges, cycles, a self-loop, dead nodes), 2 goldens.
 - [ ] **[J+A]** Dead-node elimination with `--no-dce`.
 - [x] **[A]** `rfgpu` gains a magnitude output (`frames<f32, N>`), which `two_channel.sf` needs
       and the MVP CLI does not have. Done 2026-10-26: `rfgpu magnitude --in X.cf32 --out OUT.f32`,

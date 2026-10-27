@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <map>
+#include <sstream>
 
 namespace sigflow {
 
@@ -193,34 +194,39 @@ Graph build_ir(const Program& program, const SemaResult& sema)
     return IrBuilder(program, sema).run();
 }
 
+std::string format_node(const Node& node)
+{
+    std::ostringstream out;
+    if (node.op == Op::Emit) {
+        out << "emit %" << node.inputs[0] << " -> \"" << node.path << "\"";
+        return out.str();
+    }
+    out << "%" << node.id << " = " << op_name(node.op);
+    for (NodeId input : node.inputs) {
+        out << " %" << input;
+    }
+    if (node.op == Op::Capture) {
+        out << " \"" << node.path << "\"";
+    }
+    if (node.op == Op::Fir) {
+        out << " taps=\"" << node.taps << "\"";
+    }
+    if (node.op == Op::Fft) {
+        out << " n=" << node.n;
+    }
+    out << " : " << type_name(node.type) << " @" << node.type.rate_text;
+    if (!node.name.empty()) {
+        out << "   # " << node.name;
+    }
+    return out.str();
+}
+
 void print_ir(const Graph& graph, std::ostream& out)
 {
     for (const Node& node : graph.nodes) {
-        if (!graph.live[static_cast<std::size_t>(node.id)]) {
-            continue;
+        if (graph.live[static_cast<std::size_t>(node.id)]) {
+            out << format_node(node) << "\n";
         }
-        if (node.op == Op::Emit) {
-            out << "emit %" << node.inputs[0] << " -> \"" << node.path << "\"\n";
-            continue;
-        }
-        out << "%" << node.id << " = " << op_name(node.op);
-        for (NodeId input : node.inputs) {
-            out << " %" << input;
-        }
-        if (node.op == Op::Capture) {
-            out << " \"" << node.path << "\"";
-        }
-        if (node.op == Op::Fir) {
-            out << " taps=\"" << node.taps << "\"";
-        }
-        if (node.op == Op::Fft) {
-            out << " n=" << node.n;
-        }
-        out << " : " << type_name(node.type) << " @" << node.type.rate_text;
-        if (!node.name.empty()) {
-            out << "   # " << node.name;
-        }
-        out << "\n";
     }
 }
 

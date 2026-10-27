@@ -4,6 +4,7 @@
 #include "sigflow/ir.hpp"
 #include "sigflow/lexer.hpp"
 #include "sigflow/parser.hpp"
+#include "sigflow/passes.hpp"
 #include "sigflow/sema.hpp"
 #include "sigflow/source.hpp"
 
@@ -55,6 +56,10 @@ bool parse_emit(const std::string& value, EmitMode& mode)
         mode = EmitMode::Ir;
         return true;
     }
+    if (value == "schedule") {
+        mode = EmitMode::Schedule;
+        return true;
+    }
     if (value == "json") {
         mode = EmitMode::Json;
         return true;
@@ -88,7 +93,7 @@ bool parse_options(const std::vector<std::string>& args, Options& options, std::
         if (arg.compare(0, 7, "--emit=") == 0) {
             if (!parse_emit(arg.substr(7), options.emit)) {
                 err << "sigflowc: error: unknown --emit mode '" << arg.substr(7)
-                    << "' (available: tokens, ast, check, ir, json)\n";
+                    << "' (available: tokens, ast, check, ir, schedule, json)\n";
                 return false;
             }
         } else if (!arg.empty() && arg[0] == '-') {
@@ -158,17 +163,42 @@ int compile(const Options& options, std::ostream& out, std::ostream& err)
     if (failed()) {
         return kExitCompileError;
     }
-    diagnostics.print(err);
     if (options.emit == EmitMode::Check) {
+        diagnostics.print(err);
         return kExitOk;
     }
 
     // From here on only the IR is used (compiler/AGENTS.md: no backend code reads the AST).
     const Graph graph = build_ir(program, sema);
-    if (options.emit == EmitMode::Json) {
+    const Schedule order = schedule(graph);
+    if (!order.unscheduled.empty()) {
+        // Sema rejects cyclic programs, so this is a compiler bug rather than a user error;
+        // it is still reported like any other diagnostic, with the node it starts at.
+        const Node& first = graph.nodes[static_cast<std::size_t>(order.unscheduled[0])];
+        std::string nodes;
+        for (NodeId id : order.unscheduled) {
+            nodes += (nodes.empty() ? "%" : ", %") + std::to_string(id);
+        }
+        diagnostics.error(first.range.loc, "internal error: the IR has a cycle through " + nodes,
+                          source.line_text(first.range.loc.line), first.range.length);
+        diagnostics.print(err);
+        return kExitCompileError;
+    }
+    diagnostics.print(err);
+
+    switch (options.emit) {
+    case EmitMode::Json:
         print_ir_json(graph, out);
-    } else {
+        break;
+    case EmitMode::Schedule:
+        for (std::size_t step = 0; step < order.order.size(); ++step) {
+            const Node& node = graph.nodes[static_cast<std::size_t>(order.order[step])];
+            out << step << ": " << format_node(node) << "\n";
+        }
+        break;
+    default:
         print_ir(graph, out);
+        break;
     }
     return kExitOk;
 }

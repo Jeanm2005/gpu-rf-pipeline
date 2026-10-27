@@ -59,9 +59,12 @@ struct Graph {
 // than source order; the scheduler (src/schedule.cpp) produces the source-ordered launch order.
 Graph build_ir(const Program& program, const SemaResult& sema);
 
-// Text form used by --emit=ir, one live node per line:
+// One node in the --emit=ir text form, without a line terminator:
 //   %3 = fir %0 taps="fixtures/lowpass.f32" : stream<cf32> @2.4e6   # la
 //   emit %7 -> "out/spectrum.f32"
+std::string format_node(const Node& node);
+
+// Text form used by --emit=ir: format_node() of every live node, one per line, in id order.
 void print_ir(const Graph& graph, std::ostream& out);
 
 // JSON form used by --emit=json, for the DAG viewer: {"nodes": [...], "edges": [...]}.

@@ -13,6 +13,7 @@ add_executable(sigflowc_unit_tests
   unit/ir_builder_test.cpp
   unit/lexer_test.cpp
   unit/parser_test.cpp
+  unit/schedule_test.cpp
   unit/sema_test.cpp
 )
 target_link_libraries(sigflowc_unit_tests PRIVATE GTest::gtest_main sigflow_core)
