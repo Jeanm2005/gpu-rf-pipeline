@@ -236,7 +236,9 @@ between kernel work and compiler work. Phase C needs the MVP profiling numbers a
       as unscheduled (sema already rejects cyclic programs, so the driver reports that case as
       an internal error). 8 unit tests on hand-built graphs (chains, ties, a diamond, duplicate
       edges, cycles, a self-loop, dead nodes), 2 goldens.
-- [ ] **[J+A]** Dead-node elimination with `--no-dce`.
+- [x] **[J+A]** Dead-node elimination with `--no-dce`. Done 2026-10-27: `src/dce.cpp`, a
+      backward walk from every emit; ids are kept so `--emit=ir` with and without `--no-dce`
+      can be compared line by line. 3 unit tests, 3 goldens (`dce_unused*.sf`).
 - [x] **[A]** `rfgpu` gains a magnitude output (`frames<f32, N>`), which `two_channel.sf` needs
       and the MVP CLI does not have. Done 2026-10-26: `rfgpu magnitude --in X.cf32 --out OUT.f32`,
       one thread per sample, tested against `reference.magnitude()`.

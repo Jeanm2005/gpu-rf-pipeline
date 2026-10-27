@@ -23,6 +23,7 @@ struct Options {
     std::string input_path;    // where to read the program from
     std::string display_path;  // what diagnostics call it; usually the same as input_path
     EmitMode emit = EmitMode::Tokens;
+    bool dce = true;  // dead-node elimination; --no-dce turns it off
 };
 
 // Exit codes shared by the driver and src/main.cpp.

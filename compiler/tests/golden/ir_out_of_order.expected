@@ -2,4 +2,3 @@
 %1 = fir %0 taps="fixtures/lowpass.f32" : stream<cf32> @2.4e6   # la
 %2 = xcorr %1 %1 : stream<cf32> @2.4e6   # corr
 emit %2 -> "out/xcorr.cf32"
-%4 = fft %0 n=256 : frames<cf32, 256> @2.4e6   # unused

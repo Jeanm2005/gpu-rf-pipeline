@@ -25,7 +25,10 @@ void print_usage(std::ostream& out)
            "  check     run every check, print only diagnostics\n"
            "  ir        graph IR, one node per line\n"
            "  schedule  launch order (topological sort, ties broken by source order)\n"
-           "  json      graph IR as JSON, for the DAG viewer\n";
+           "  json      graph IR as JSON, for the DAG viewer\n"
+           "\n"
+           "passes:\n"
+           "  --no-dce  keep nodes that no emit depends on\n";
 }
 
 }  // namespace

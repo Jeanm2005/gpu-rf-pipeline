@@ -96,6 +96,8 @@ bool parse_options(const std::vector<std::string>& args, Options& options, std::
                     << "' (available: tokens, ast, check, ir, schedule, json)\n";
                 return false;
             }
+        } else if (arg == "--no-dce") {
+            options.dce = false;
         } else if (!arg.empty() && arg[0] == '-') {
             err << "sigflowc: error: unknown option '" << arg << "'\n";
             return false;
@@ -169,7 +171,10 @@ int compile(const Options& options, std::ostream& out, std::ostream& err)
     }
 
     // From here on only the IR is used (compiler/AGENTS.md: no backend code reads the AST).
-    const Graph graph = build_ir(program, sema);
+    Graph graph = build_ir(program, sema);
+    if (options.dce) {
+        graph = eliminate_dead_nodes(std::move(graph));
+    }
     const Schedule order = schedule(graph);
     if (!order.unscheduled.empty()) {
         // Sema rejects cyclic programs, so this is a compiler bug rather than a user error;

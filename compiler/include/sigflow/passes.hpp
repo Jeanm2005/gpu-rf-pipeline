@@ -10,6 +10,10 @@
 
 namespace sigflow {
 
+// Dead-node elimination (turned off by --no-dce): every node that no Emit depends on, directly
+// or through other nodes, stops being live. Node ids are not renumbered.
+Graph eliminate_dead_nodes(Graph graph);
+
 struct Schedule {
     // Live nodes in launch order: every node comes after all of its inputs.
     std::vector<NodeId> order;

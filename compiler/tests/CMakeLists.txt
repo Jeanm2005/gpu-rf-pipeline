@@ -9,6 +9,7 @@ FetchContent_MakeAvailable(googletest)
 include(GoogleTest)
 
 add_executable(sigflowc_unit_tests
+  unit/dce_test.cpp
   unit/diagnostics_test.cpp
   unit/ir_builder_test.cpp
   unit/lexer_test.cpp

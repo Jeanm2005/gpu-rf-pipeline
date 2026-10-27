@@ -1,0 +1,6 @@
+%0 = capture "fixtures/ch0.cf32" : stream<cf32> @2.4e6   # a
+%1 = capture "fixtures/ch1.cf32" : stream<cf32> @2.4e6   # b
+%2 = fir %0 taps="fixtures/lowpass.f32" : stream<cf32> @2.4e6   # la
+%3 = fft %0 n=1024 : frames<cf32, 1024> @2.4e6
+%4 = magnitude %3 : frames<f32, 1024> @2.4e6   # spec
+emit %2 -> "out/la.cf32"

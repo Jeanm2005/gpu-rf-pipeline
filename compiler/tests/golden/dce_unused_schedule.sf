@@ -1,0 +1,7 @@
+# args: --emit=schedule
+# A spectrum nobody emits, its FFT, and a capture nothing reads: all dead.
+a     = capture("fixtures/ch0.cf32", rate=2.4e6)
+b     = capture("fixtures/ch1.cf32", rate=2.4e6)
+la    = a |> fir(taps="fixtures/lowpass.f32")
+spec  = a |> fft(n=1024) |> magnitude
+emit la -> "out/la.cf32"
