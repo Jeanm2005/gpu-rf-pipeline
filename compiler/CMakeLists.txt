@@ -10,11 +10,13 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE Debug CACHE STRING "Build type" FORCE)
 endif()
 
-# Grows to hold every compiler pass (diagnostics now; lexer, parser, sema, IR builder,
+# Grows to hold every compiler pass (diagnostics and lexer now; parser, sema, IR builder,
 # scheduler, ... later), linked by both the sigflowc executable (once src/main.cpp exists) and
 # the unit tests below.
 add_library(sigflow_core STATIC
   src/diagnostics.cpp
+  src/lexer.cpp
+  src/source.cpp
 )
 target_include_directories(sigflow_core PUBLIC include)
 
