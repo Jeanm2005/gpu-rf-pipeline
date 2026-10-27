@@ -4,21 +4,38 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SigFlow IR viewer</title>
+  <link rel="icon" href="data:,">
   <style>
+    /* Buffer-slot colors: a fixed categorical order, validated for color-vision deficiency on
+       both surfaces (light and dark are each stepped for their own background). */
     :root {
+      color-scheme: light;
       --bg: #ffffff;
+      --panel: #f6f8fa;
       --fg: #1f2328;
       --muted: #656d76;
       --border: #d0d7de;
+      --grid: #eaeef2;
+      --accent: #0969da;
       --error: #cf222e;
+      --slot-0: #2a78d6; --slot-1: #eb6834; --slot-2: #1baf7a; --slot-3: #eda100;
+      --slot-4: #e87ba4; --slot-5: #008300; --slot-6: #6250d6; --slot-7: #e34948;
+      --slot-other: #8c959f;
     }
     @media (prefers-color-scheme: dark) {
       :root {
+        color-scheme: dark;
         --bg: #0d1117;
+        --panel: #161b22;
         --fg: #e6edf3;
         --muted: #8d96a0;
         --border: #30363d;
+        --grid: #21262d;
+        --accent: #4493f8;
         --error: #ff7b72;
+        --slot-0: #3987e5; --slot-1: #d95926; --slot-2: #199e70; --slot-3: #c98500;
+        --slot-4: #d55181; --slot-5: #008300; --slot-6: #9085e9; --slot-7: #e66767;
+        --slot-other: #6e7681;
       }
     }
     body {
@@ -30,9 +47,63 @@
     }
     header { display: flex; flex-wrap: wrap; gap: 12px; align-items: baseline; }
     h1 { font-size: 18px; margin: 0; }
+    h2 { font-size: 15px; margin: 20px 0 6px; }
     #status { color: var(--muted); margin: 8px 0; }
     #status.error { color: var(--error); }
-    #summary { font-family: ui-monospace, monospace; }
+    .controls { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
+    #stages { display: flex; gap: 12px; }
+    .scroll {
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--panel);
+      margin-top: 8px;
+    }
+    .scroll svg { display: block; }
+    .columns { display: grid; grid-template-columns: minmax(0, 2fr) minmax(220px, 1fr); gap: 16px; }
+    @media (max-width: 720px) { .columns { grid-template-columns: minmax(0, 1fr); } }
+    #details {
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--panel);
+      font: 12px/1.6 ui-monospace, monospace;
+      white-space: pre-wrap;
+    }
+
+    /* DAG */
+    .node { cursor: pointer; }
+    .node .box { fill: var(--bg); stroke: var(--border); stroke-width: 1; }
+    .node.op-emit .box { stroke-dasharray: 4 3; }
+    .node:hover .box, .node:focus .box { stroke: var(--accent); }
+    .node:focus { outline: none; }
+    .node.selected .box { stroke: var(--accent); stroke-width: 2; }
+    .node.removed { opacity: 0.35; }
+    .node.removed .box { stroke-dasharray: 3 3; }
+    .node .title { fill: var(--fg); font: 600 12px ui-monospace, monospace; }
+    .node .detail { fill: var(--muted); font: 11px ui-monospace, monospace; }
+    .edge { fill: none; stroke: var(--muted); stroke-width: 1.5; }
+    .edge.removed { stroke-dasharray: 3 3; opacity: 0.35; }
+    .arrow { fill: var(--muted); }
+
+    /* Buffer timeline */
+    .grid { stroke: var(--grid); stroke-width: 1; }
+    .axis { fill: var(--muted); font: 11px ui-monospace, monospace; }
+    .bar-label { fill: var(--fg); font: 11px ui-monospace, monospace; }
+    .bar .hit { fill: transparent; }
+    .bar:hover .bar-label, .bar.selected .bar-label { font-weight: 700; }
+
+    /* Schedule table */
+    table { border-collapse: collapse; font: 12px ui-monospace, monospace; }
+    th, td { text-align: left; padding: 3px 12px 3px 0; border-bottom: 1px solid var(--grid); }
+    th { color: var(--muted); font-weight: 600; }
+    tbody tr { cursor: pointer; }
+    tbody tr.selected td { color: var(--accent); font-weight: 700; }
+    .swatch {
+      display: inline-block; width: 10px; height: 10px; border-radius: 2px;
+      margin-right: 6px; vertical-align: -1px;
+    }
   </style>
 </head>
 <body>
@@ -42,7 +113,38 @@
   </header>
   <p id="status">Open the output of <code>sigflowc PROGRAM.sf --emit=json</code>, drop it on
     the page, or pass <code>?src=URL</code>.</p>
-  <ol id="summary" start="0"></ol>
+
+  <main id="viewer" hidden>
+    <div class="controls">
+      <div id="stages" role="radiogroup" aria-label="Pass"></div>
+      <label><input id="show-removed" type="checkbox" checked> show removed nodes</label>
+    </div>
+    <div class="columns">
+      <section>
+        <h2>Graph</h2>
+        <div class="scroll"><svg id="graph" role="img" aria-label="IR graph"></svg></div>
+      </section>
+      <section>
+        <h2>Selected node</h2>
+        <pre id="details"></pre>
+      </section>
+    </div>
+
+    <h2>Buffer slots over the schedule</h2>
+    <div class="scroll"><svg id="timeline" role="img"
+      aria-label="Live range of every value, one lane per buffer slot"></svg></div>
+
+    <h2>Schedule</h2>
+    <div class="scroll" style="padding: 8px 12px">
+      <table>
+        <thead>
+          <tr><th>step</th><th>node</th><th>op</th><th>name</th><th>live</th><th>buffer</th>
+            <th>size</th></tr>
+        </thead>
+        <tbody id="schedule-body"></tbody>
+      </table>
+    </div>
+  </main>
   <script type="module" src="./dist/src/main.js"></script>
 </body>
 </html>

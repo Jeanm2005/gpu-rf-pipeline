@@ -37,7 +37,7 @@ code generation.
 | Dead-node elimination | Drops stages that no `emit` depends on | A | ✅ |
 | Script backend | Emits an `rfgpu` command script | A | ✅ |
 | Liveness analysis | Finds when each buffer is last used, so GPU memory can be reused | B | ✅ |
-| DAG viewer | TypeScript page drawing the IR before and after each pass | B | ⬜ |
+| DAG viewer | TypeScript page drawing the IR before and after each pass | B | ✅ |
 | Kernel fusion | Merges compatible adjacent stages into one kernel | C | ⬜ |
 | CUDA backend | Emits CUDA C++ calling the existing and fused kernels | C | ⬜ |
 

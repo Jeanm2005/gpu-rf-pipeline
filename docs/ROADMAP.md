@@ -272,7 +272,12 @@ between kernel work and compiler work. Phase C needs the MVP profiling numbers a
       `compiler/viewer/` with TypeScript 7 (`tsc` only, no bundler), a validating parser for
       `--emit=json`, file picker / drag and drop / `?src=` loading, a static dev server, and
       `node:test` suites run against the compiler's golden JSON (3 tests).
-- [ ] **[J]** Graph layout and rendering of the IR before and after each pass.
+- [x] **[J]** Graph layout and rendering of the IR before and after each pass. Done
+      2026-10-27: `src/layout.ts` (longest-path layering, barycenter sweeps that keep the
+      ordering with the fewest crossings, layout computed once so nodes stay put between
+      passes), `src/render.ts` (SVG graph with pass selection and removed nodes faded in place,
+      a buffer-slot timeline, a schedule table). 5 layout tests; checked in the browser at
+      desktop and phone widths.
 
 ### C-C. Phase C: fusion and CUDA backend
 
