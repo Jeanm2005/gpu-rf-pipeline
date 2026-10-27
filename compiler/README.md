@@ -140,6 +140,24 @@ pytest -q tests/e2e
 |---|---|---|---|
 | `two_channel.sf` | — | — | — |
 
+### Planned GPU memory (phase B)
+
+Computed by `sigflowc --emit=liveness --input-dir=../tests` (and `--no-reuse`) from the fixture
+sizes: the bytes every value needs if each gets its own buffer, against one buffer per slot after
+liveness analysis. These are compile-time plans, not measurements. The phase A backend runs each
+`rfgpu` command as its own process, so GPU buffers are not shared between operations and reuse
+cannot show up in a real GPU-memory measurement until the phase C CUDA backend keeps buffers on
+the device; that measurement goes in the table above.
+
+| Program | Values | Buffers (no reuse → reuse) | Bytes (no reuse → reuse) | Saved | Busiest step |
+|---|---|---|---|---|---|
+| `examples/two_channel.sf` | 7 | 7 → 4 | 983,032 → 589,816 | 40.0% | 589,816 |
+| `examples/spectrum.sf` | 3 | 3 → 2 | 1,310,720 → 1,048,576 | 20.0% | 1,048,576 |
+| `examples/delay.sf` | 5 | 5 → 4 | 684,392 → 604,336 | 11.7% | 604,336 |
+
+In all three, the plan with reuse equals the bytes live at the busiest step, which no plan can go
+below, so first-fit assignment is already optimal for these programs.
+
 ## Roadmap
 
 1. **Phase A:** front end, graph IR, topological scheduling, dead-node elimination, script backend.
