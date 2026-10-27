@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SigFlow IR viewer</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --fg: #1f2328;
+      --muted: #656d76;
+      --border: #d0d7de;
+      --error: #cf222e;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0d1117;
+        --fg: #e6edf3;
+        --muted: #8d96a0;
+        --border: #30363d;
+        --error: #ff7b72;
+      }
+    }
+    body {
+      margin: 0;
+      padding: 16px;
+      background: var(--bg);
+      color: var(--fg);
+      font: 14px/1.5 system-ui, sans-serif;
+    }
+    header { display: flex; flex-wrap: wrap; gap: 12px; align-items: baseline; }
+    h1 { font-size: 18px; margin: 0; }
+    #status { color: var(--muted); margin: 8px 0; }
+    #status.error { color: var(--error); }
+    #summary { font-family: ui-monospace, monospace; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>SigFlow IR viewer</h1>
+    <input id="file" type="file" accept=".json,application/json">
+  </header>
+  <p id="status">Open the output of <code>sigflowc PROGRAM.sf --emit=json</code>, drop it on
+    the page, or pass <code>?src=URL</code>.</p>
+  <ol id="summary" start="0"></ol>
+  <script type="module" src="./dist/src/main.js"></script>
+</body>
+</html>

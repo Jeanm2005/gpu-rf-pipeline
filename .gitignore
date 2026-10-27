@@ -11,3 +11,5 @@ __pycache__/
 # Large or intermediate profiler files (keep small reports and screenshots)
 *.qdstrm
 *.sqlite
+node_modules/
+compiler/viewer/dist/

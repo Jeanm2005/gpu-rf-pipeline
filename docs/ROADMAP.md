@@ -268,7 +268,10 @@ between kernel work and compiler work. Phase C needs the MVP profiling numbers a
       first fit matches the live-bytes lower bound on every example). A real measurement needs
       buffers that stay on the GPU across operations, which the phase A script (one `rfgpu`
       process per operation) does not have: it moves to the phase C CUDA backend.
-- [ ] **[A]** `viewer/` scaffolding (TypeScript build, JSON loading).
+- [x] **[A]** `viewer/` scaffolding (TypeScript build, JSON loading). Done 2026-10-27:
+      `compiler/viewer/` with TypeScript 7 (`tsc` only, no bundler), a validating parser for
+      `--emit=json`, file picker / drag and drop / `?src=` loading, a static dev server, and
+      `node:test` suites run against the compiler's golden JSON (3 tests).
 - [ ] **[J]** Graph layout and rendering of the IR before and after each pass.
 
 ### C-C. Phase C: fusion and CUDA backend

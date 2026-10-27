@@ -1,0 +1,16 @@
+{
+  "name": "sigflow-viewer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Draws the SigFlow graph IR (sigflowc --emit=json) before and after each pass.",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p .",
+    "test": "tsc -p . && node --test \"dist/test/*.test.js\"",
+    "serve": "node scripts/serve.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "typescript": "7.0.2"
+  }
+}
