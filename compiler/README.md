@@ -35,7 +35,7 @@ code generation.
 | IR builder | AST → DAG (directed acyclic graph) of operations | A | ✅ |
 | Scheduler | Topological sort (Kahn's algorithm), cycle detection, source-order tie-breaking | A | ✅ |
 | Dead-node elimination | Drops stages that no `emit` depends on | A | ✅ |
-| Script backend | Emits an `rfgpu` command script | A | ⬜ |
+| Script backend | Emits an `rfgpu` command script | A | ✅ |
 | Liveness analysis | Finds when each buffer is last used, so GPU memory can be reused | B | ⬜ |
 | DAG viewer | TypeScript page drawing the IR before and after each pass | B | ⬜ |
 | Kernel fusion | Merges compatible adjacent stages into one kernel | C | ⬜ |

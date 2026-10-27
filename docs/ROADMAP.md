@@ -196,19 +196,20 @@ between kernel work and compiler work. Phase C needs the MVP profiling numbers a
 - [x] **[A]** `compiler/CMakeLists.txt`, GoogleTest, the golden-test runner, and
       `--update-golden`. Done 2026-10-26: `add_golden_test()` (`compiler/cmake/`) registers a
       CTest case per golden file plus an `update_golden_<name>` target; GoogleTest is wired via
-      `FetchContent` with a placeholder test. Validated against `cmake -E echo` since `sigflowc`
-      doesn't exist yet. The `--update-golden tests/golden` form on the binary itself (per
-      `compiler/AGENTS.md`'s quick start) is still pending; it lands with `src/main.cpp` below.
-- [ ] **[J]** Design the token, AST, and IR data structures. Tokens, AST, and IR done 2026-10-27. **[A]** fills in header boilerplate
-      once they are designed.
-- [ ] **[A]** `src/main.cpp` (`--emit=tokens|ast|ir|schedule|json`, `-o`) and the diagnostics
+      `FetchContent`. `sigflowc --update-golden tests/golden` landed with `src/main.cpp`
+      (2026-10-27), and golden cases are now discovered from `tests/golden/*.sf`.
+- [x] **[J]** Design the token, AST, and IR data structures. **[A]** fills in header boilerplate
+      once they are designed. Done 2026-10-27: `include/sigflow/token.hpp`, `ast.hpp`,
+      `types.hpp`, `ir.hpp`.
+- [x] **[A]** `src/main.cpp` (`--emit=tokens|ast|ir|schedule|json`, `-o`) and the diagnostics
       printer (file, line, column, source line with a caret). Diagnostics done 2026-10-26:
       `sigflow::DiagnosticEngine` and `format_diagnostic()` in the new `sigflow_core` library
       (`compiler/include/sigflow/diagnostics.hpp`, `compiler/src/diagnostics.cpp`). Driver done
-      2026-10-27: `sigflowc` with `--emit=tokens|ast` and `--update-golden DIR`
+      2026-10-27: `sigflowc` with `--update-golden DIR`
       (`src/main.cpp`, `src/driver.cpp`); every `tests/golden/*.sf` is registered
-      automatically and compared on stdout, stderr, and exit code. The remaining `--emit`
-      modes and `-o` land with the stages that produce them.
+      automatically and compared on stdout, stderr, and exit code. All `--emit` modes
+      (`tokens`, `ast`, `check`, `ir`, `schedule`, `json`, `script`) and `-o` done
+      2026-10-27.
 - [x] **[J]** `src/lexer.cpp`. **[A]** lexer unit tests and goldens (unterminated string, stray
       character, empty program). Done 2026-10-27: `Token` / `TokenKind` in
       `include/sigflow/token.hpp`, `SourceFile` in `include/sigflow/source.hpp`, 13 unit tests,
@@ -242,7 +243,10 @@ between kernel work and compiler work. Phase C needs the MVP profiling numbers a
 - [x] **[A]** `rfgpu` gains a magnitude output (`frames<f32, N>`), which `two_channel.sf` needs
       and the MVP CLI does not have. Done 2026-10-26: `rfgpu magnitude --in X.cf32 --out OUT.f32`,
       one thread per sample, tested against `reference.magnitude()`.
-- [ ] **[A]** `src/backend_script.cpp`: emits a script of `rfgpu` commands.
+- [x] **[A]** `src/backend_script.cpp`: emits a script of `rfgpu` commands. Done 2026-10-27:
+      `--emit=script` is the default and `-o FILE` writes it (executable); one `rfgpu` command
+      per scheduled node, intermediates in a `mktemp -d` directory removed on exit, `$RFGPU`
+      overrides the binary. 2 goldens (`script_two_channel`, `script_quoting`).
 - [ ] **[A]** `examples/*.sf` and `tests/e2e`: compile, run on the fixtures, compare to
       `tools/reference.py`.
 

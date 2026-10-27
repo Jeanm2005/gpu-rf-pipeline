@@ -1,5 +1,6 @@
 #include "sigflow/driver.hpp"
 
+#include "sigflow/backend_script.hpp"
 #include "sigflow/diagnostics.hpp"
 #include "sigflow/ir.hpp"
 #include "sigflow/lexer.hpp"
@@ -64,6 +65,10 @@ bool parse_emit(const std::string& value, EmitMode& mode)
         mode = EmitMode::Json;
         return true;
     }
+    if (value == "script") {
+        mode = EmitMode::Script;
+        return true;
+    }
     return false;
 }
 
@@ -89,11 +94,18 @@ std::vector<std::string> golden_args(const std::string& first_line)
 bool parse_options(const std::vector<std::string>& args, Options& options, std::ostream& err)
 {
     bool have_input = false;
-    for (const std::string& arg : args) {
-        if (arg.compare(0, 7, "--emit=") == 0) {
+    for (std::size_t i = 0; i < args.size(); ++i) {
+        const std::string& arg = args[i];
+        if (arg == "-o") {
+            if (i + 1 == args.size()) {
+                err << "sigflowc: error: -o needs a file name\n";
+                return false;
+            }
+            options.output_path = args[++i];
+        } else if (arg.compare(0, 7, "--emit=") == 0) {
             if (!parse_emit(arg.substr(7), options.emit)) {
                 err << "sigflowc: error: unknown --emit mode '" << arg.substr(7)
-                    << "' (available: tokens, ast, check, ir, schedule, json)\n";
+                    << "' (available: tokens, ast, check, ir, schedule, json, script)\n";
                 return false;
             }
         } else if (arg == "--no-dce") {
@@ -194,6 +206,9 @@ int compile(const Options& options, std::ostream& out, std::ostream& err)
     switch (options.emit) {
     case EmitMode::Json:
         print_ir_json(graph, out);
+        break;
+    case EmitMode::Script:
+        emit_script(graph, order, options.display_path, out);
         break;
     case EmitMode::Schedule:
         for (std::size_t step = 0; step < order.order.size(); ++step) {

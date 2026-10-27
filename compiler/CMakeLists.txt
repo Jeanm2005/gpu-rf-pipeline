@@ -13,6 +13,7 @@ endif()
 # Every compiler pass, linked by both the sigflowc executable and the unit tests below.
 add_library(sigflow_core STATIC
   src/ast.cpp
+  src/backend_script.cpp
   src/dce.cpp
   src/diagnostics.cpp
   src/driver.cpp

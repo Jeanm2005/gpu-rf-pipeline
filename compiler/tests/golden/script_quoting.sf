@@ -1,0 +1,6 @@
+# args: --emit=script
+# Emitting a capture copies the input; a quote in a path is escaped for bash; the same value
+# can be emitted twice; a path with no directory needs no mkdir.
+a = capture("fixtures/it's.cf32", rate=1e6)
+emit a -> "copy.cf32"
+emit a -> "out/deep/copy.cf32"

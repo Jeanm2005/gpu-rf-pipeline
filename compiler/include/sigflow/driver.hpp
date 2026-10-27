@@ -17,12 +17,14 @@ enum class EmitMode {
     Ir,
     Schedule,
     Json,
+    Script,  // the phase A backend: a bash script of rfgpu commands (the default)
 };
 
 struct Options {
     std::string input_path;    // where to read the program from
     std::string display_path;  // what diagnostics call it; usually the same as input_path
-    EmitMode emit = EmitMode::Tokens;
+    EmitMode emit = EmitMode::Script;
+    std::string output_path;   // -o: write the output here instead of stdout (src/main.cpp)
     bool dce = true;  // dead-node elimination; --no-dce turns it off
 };
 
