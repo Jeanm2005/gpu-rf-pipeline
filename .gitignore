@@ -1,6 +1,7 @@
 # Build outputs
 build/
 out/
+compiler/fixtures
 
 # Python
 .venv/

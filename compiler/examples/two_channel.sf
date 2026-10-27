@@ -1,0 +1,12 @@
+# The example from compiler/README.md: filter two channels, take the spectrum of one, and
+# cross-correlate them. The rate is the fixtures' 1e6 (see their .json sidecars) rather than
+# the README's 2.4e6.
+a    = capture("fixtures/ch0.cf32", rate=1e6)
+b    = capture("fixtures/ch1.cf32", rate=1e6)
+la   = a |> fir(taps="fixtures/lowpass.f32")
+lb   = b |> fir(taps="fixtures/lowpass.f32")
+spec = la |> fft(n=1024) |> magnitude
+corr = xcorr(la, lb)
+
+emit spec -> "out/spectrum.f32"
+emit corr -> "out/xcorr.cf32"

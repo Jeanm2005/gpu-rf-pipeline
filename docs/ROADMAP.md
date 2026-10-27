@@ -247,8 +247,12 @@ between kernel work and compiler work. Phase C needs the MVP profiling numbers a
       `--emit=script` is the default and `-o FILE` writes it (executable); one `rfgpu` command
       per scheduled node, intermediates in a `mktemp -d` directory removed on exit, `$RFGPU`
       overrides the binary. 2 goldens (`script_two_channel`, `script_quoting`).
-- [ ] **[A]** `examples/*.sf` and `tests/e2e`: compile, run on the fixtures, compare to
-      `tools/reference.py`.
+- [x] **[A]** `examples/*.sf` and `tests/e2e`: compile, run on the fixtures, compare to
+      `tools/reference.py`. Done 2026-10-27: `spectrum.sf`, `two_channel.sf`, `delay.sf`;
+      `tests/e2e/test_examples.py` evaluates each program's `--emit=json` IR with the reference
+      and compares every emitted file with tolerances measured on this GPU, checks each
+      capture's rate against its fixture sidecar, and recovers `true_delay_samples` from
+      `delay.sf`. 7 tests, all passing on the RTX 5080 Laptop GPU with CUDA 13.4.
 
 ### C-B. Phase B: liveness and viewer
 

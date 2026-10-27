@@ -113,7 +113,9 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build -j
 
 ./build/sigflowc examples/two_channel.sf --emit=schedule
-./build/sigflowc examples/two_channel.sf -o out/run.sh && bash out/run.sh
+./build/sigflowc examples/two_channel.sf -o out/run.sh
+ln -sfn ../tests/fixtures fixtures       # the examples read fixtures/*.cf32 (git-ignored link)
+RFGPU=../build/rfgpu bash out/run.sh     # writes out/spectrum.f32 and out/xcorr.cf32
 
 ctest --test-dir build --output-on-failure
 pytest -q tests/e2e
@@ -125,8 +127,10 @@ pytest -q tests/e2e
   liveness and fusion on hand-built graphs.
 - **Golden tests:** each `tests/golden/*.sf` has an expected `--emit` output or expected
   diagnostics, compared exactly.
-- **End-to-end tests** (pytest): every program in `examples/` is compiled, run on the fixtures,
-  and checked against the NumPy/SciPy reference from `../tools/reference.py`.
+- **End-to-end tests** (pytest, `tests/e2e/`): every program in `examples/` is compiled, its
+  script is run on the fixtures, and every emitted file is compared to the NumPy/SciPy reference
+  from `../tools/reference.py`, evaluated on the same IR (`--emit=json`). Needs `../build/rfgpu`
+  and a GPU; skips otherwise. `SIGFLOWC_BIN` and `RFGPU_BIN` point it at other builds.
 
 ## Results
 

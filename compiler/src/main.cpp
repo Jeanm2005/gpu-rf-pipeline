@@ -39,9 +39,15 @@ void print_usage(std::ostream& out)
            "  --no-dce  keep nodes that no emit depends on\n";
 }
 
-// Writes `text` to `path`, marking it executable when it is a script.
+// Writes `text` to `path`, creating its directory and marking it executable when it is a script.
 int write_output(const sigflow::Options& options, const std::string& text)
 {
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    const fs::path parent = fs::path(options.output_path).parent_path();
+    if (!parent.empty()) {
+        fs::create_directories(parent, ec);
+    }
     std::ofstream file(options.output_path, std::ios::binary);
     if (!file || !(file << text) || !file.flush()) {
         std::cerr << "sigflowc: error: cannot write '" << options.output_path << "'\n";
@@ -49,8 +55,6 @@ int write_output(const sigflow::Options& options, const std::string& text)
     }
     file.close();
     if (options.emit == sigflow::EmitMode::Script) {
-        namespace fs = std::filesystem;
-        std::error_code ec;
         fs::permissions(options.output_path,
                         fs::perms::owner_exec | fs::perms::group_exec | fs::perms::others_exec,
                         fs::perm_options::add, ec);
