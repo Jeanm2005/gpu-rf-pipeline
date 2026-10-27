@@ -8,8 +8,10 @@ schedule and the buffer slots from liveness analysis:
   buffer slot (`b2`, with the slot's color along its edge), schedule step, and size.
 - **Buffer slots over the schedule:** one lane per slot, one bar per value from the step that
   writes it to the last step that reads it, so a lane with several bars is a reused buffer.
-- **Schedule:** the same data as a table. Selecting a node anywhere highlights it everywhere. It reads the output of
-`sigflowc PROGRAM.sf --emit=json` (format: `../include/sigflow/json.hpp`).
+- **Schedule:** the same data as a table. Selecting a node anywhere highlights it everywhere.
+
+It reads the output of `sigflowc PROGRAM.sf --emit=json` (format:
+`../include/sigflow/json.hpp`).
 
 TypeScript compiled by `tsc` alone, no bundler or framework, and no runtime dependencies.
 

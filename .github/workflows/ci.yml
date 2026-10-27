@@ -8,6 +8,8 @@
 #           with every compiler warning treated as an error.
 #   sigflowc  the SigFlow compiler (compiler/) builds with warnings as errors and passes its
 #           GoogleTest unit tests and golden tests (ctest). It needs no GPU.
+#   viewer  the DAG viewer (compiler/viewer/) type-checks and passes its node:test suites,
+#           which read the compiler's golden JSON.
 #
 # The GPU tests (tests/test_pipeline.py and compiler/tests/e2e) still have to be run locally
 # before each commit.
@@ -100,3 +102,24 @@ jobs:
 
       - name: Test
         run: ctest --test-dir compiler/build --output-on-failure
+
+  viewer:
+    name: DAG viewer tests
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: compiler/viewer
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: compiler/viewer/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check and test
+        run: npm test
