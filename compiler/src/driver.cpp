@@ -2,6 +2,7 @@
 
 #include "sigflow/diagnostics.hpp"
 #include "sigflow/lexer.hpp"
+#include "sigflow/parser.hpp"
 #include "sigflow/source.hpp"
 
 #include <algorithm>
@@ -40,6 +41,10 @@ bool parse_emit(const std::string& value, EmitMode& mode)
         mode = EmitMode::Tokens;
         return true;
     }
+    if (value == "ast") {
+        mode = EmitMode::Ast;
+        return true;
+    }
     return false;
 }
 
@@ -69,7 +74,7 @@ bool parse_options(const std::vector<std::string>& args, Options& options, std::
         if (arg.compare(0, 7, "--emit=") == 0) {
             if (!parse_emit(arg.substr(7), options.emit)) {
                 err << "sigflowc: error: unknown --emit mode '" << arg.substr(7)
-                    << "' (available: tokens)\n";
+                    << "' (available: tokens, ast)\n";
                 return false;
             }
         } else if (!arg.empty() && arg[0] == '-') {
@@ -105,16 +110,32 @@ int compile(const Options& options, std::ostream& out, std::ostream& err)
     DiagnosticEngine diagnostics;
 
     // Each stage stops the pipeline when it reports an error, so later stages never see a
-    // broken input and the user sees the first stage's errors only.
+    // broken input and the user sees the first failing stage's errors only. Diagnostics are
+    // printed once, when the run ends, and always before any --emit output.
+    const auto failed = [&] {
+        if (!diagnostics.has_errors()) {
+            return false;
+        }
+        diagnostics.print(err);
+        return true;
+    };
+
     const std::vector<Token> tokens = lex(source, diagnostics);
-    diagnostics.print(err);
-    if (diagnostics.has_errors()) {
+    if (failed()) {
         return kExitCompileError;
     }
     if (options.emit == EmitMode::Tokens) {
+        diagnostics.print(err);
         print_tokens(tokens, out);
         return kExitOk;
     }
+
+    const Program program = parse(tokens, source, diagnostics);
+    if (failed()) {
+        return kExitCompileError;
+    }
+    diagnostics.print(err);
+    print_ast(program, out);
     return kExitOk;
 }
 

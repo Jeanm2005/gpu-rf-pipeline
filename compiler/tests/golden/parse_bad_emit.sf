@@ -1,0 +1,5 @@
+# args: --emit=ast
+# emit = "emit" IDENT "->" STRING, broken one piece at a time.
+emit -> "out/a.f32"
+emit a "out/a.f32"
+emit a -> out

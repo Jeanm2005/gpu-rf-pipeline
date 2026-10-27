@@ -1,0 +1,14 @@
+program
+  binding c @3:1
+    call xcorr @3:5
+      pipe @3:12
+        call capture @3:12
+          string "a.cf32" @3:20
+          kwarg rate = number 1e6 @3:30
+        call fir @3:43
+          kwarg taps = string "h.f32" @3:47
+      name b @3:63
+  binding d @4:1
+    name c @4:6
+  binding e @5:1
+    call f @5:5

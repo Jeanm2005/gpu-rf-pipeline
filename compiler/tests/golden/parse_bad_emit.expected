@@ -1,0 +1,10 @@
+parse_bad_emit.sf:3:6: error: expected the name of a binding after 'emit', found '->'
+  emit -> "out/a.f32"
+       ^~
+parse_bad_emit.sf:4:8: error: expected '->' after 'emit a', found string "out/a.f32"
+  emit a "out/a.f32"
+         ^~~~~~~~~~~
+parse_bad_emit.sf:5:11: error: expected an output path string after '->', found identifier 'out'
+  emit a -> out
+            ^~~
+[exit 1]

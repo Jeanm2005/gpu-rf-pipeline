@@ -1,0 +1,10 @@
+parse_bad_statement.sf:3:1: error: expected a binding ('name = ...') or an 'emit' statement, found string "fixtures/ch0.cf32"
+  "fixtures/ch0.cf32"
+  ^~~~~~~~~~~~~~~~~~~
+parse_bad_statement.sf:4:3: error: expected '=' after 'a', found identifier 'capture'
+  a capture("fixtures/ch0.cf32", rate=2.4e6)
+    ^~~~~~~
+parse_bad_statement.sf:5:7: error: expected end of line after the statement, found identifier 'c'
+  b = a c
+        ^
+[exit 1]

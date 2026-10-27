@@ -12,9 +12,11 @@ endif()
 
 # Every compiler pass, linked by both the sigflowc executable and the unit tests below.
 add_library(sigflow_core STATIC
+  src/ast.cpp
   src/diagnostics.cpp
   src/driver.cpp
   src/lexer.cpp
+  src/parser.cpp
   src/source.cpp
 )
 target_include_directories(sigflow_core PUBLIC include)

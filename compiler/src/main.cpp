@@ -1,6 +1,6 @@
 // sigflowc: the SigFlow compiler command line.
 //
-//   sigflowc PROGRAM.sf --emit=tokens
+//   sigflowc PROGRAM.sf --emit=tokens|ast
 //   sigflowc --update-golden tests/golden
 //
 // See compiler/README.md for the language and compiler/AGENTS.md for every --emit mode planned.
@@ -16,11 +16,12 @@ namespace {
 void print_usage(std::ostream& out)
 {
     out << "usage:\n"
-           "  sigflowc PROGRAM.sf --emit=tokens\n"
+           "  sigflowc PROGRAM.sf --emit=MODE\n"
            "  sigflowc --update-golden DIR    regenerate DIR/*.expected from DIR/*.sf\n"
            "\n"
            "--emit modes:\n"
-           "  tokens    lexer output, one token per line\n";
+           "  tokens    lexer output, one token per line\n"
+           "  ast       parser output, one node per line\n";
 }
 
 }  // namespace

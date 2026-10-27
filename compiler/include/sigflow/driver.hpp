@@ -12,6 +12,7 @@ namespace sigflow {
 
 enum class EmitMode {
     Tokens,
+    Ast,
 };
 
 struct Options {

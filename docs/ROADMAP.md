@@ -199,13 +199,13 @@ between kernel work and compiler work. Phase C needs the MVP profiling numbers a
       `FetchContent` with a placeholder test. Validated against `cmake -E echo` since `sigflowc`
       doesn't exist yet. The `--update-golden tests/golden` form on the binary itself (per
       `compiler/AGENTS.md`'s quick start) is still pending; it lands with `src/main.cpp` below.
-- [ ] **[J]** Design the token, AST, and IR data structures. Tokens done 2026-10-27. **[A]** fills in header boilerplate
+- [ ] **[J]** Design the token, AST, and IR data structures. Tokens and AST done 2026-10-27. **[A]** fills in header boilerplate
       once they are designed.
 - [ ] **[A]** `src/main.cpp` (`--emit=tokens|ast|ir|schedule|json`, `-o`) and the diagnostics
       printer (file, line, column, source line with a caret). Diagnostics done 2026-10-26:
       `sigflow::DiagnosticEngine` and `format_diagnostic()` in the new `sigflow_core` library
       (`compiler/include/sigflow/diagnostics.hpp`, `compiler/src/diagnostics.cpp`). Driver done
-      2026-10-27: `sigflowc` with `--emit=tokens` and `--update-golden DIR`
+      2026-10-27: `sigflowc` with `--emit=tokens|ast` and `--update-golden DIR`
       (`src/main.cpp`, `src/driver.cpp`); every `tests/golden/*.sf` is registered
       automatically and compared on stdout, stderr, and exit code. The remaining `--emit`
       modes and `-o` land with the stages that produce them.
@@ -213,8 +213,11 @@ between kernel work and compiler work. Phase C needs the MVP profiling numbers a
       character, empty program). Done 2026-10-27: `Token` / `TokenKind` in
       `include/sigflow/token.hpp`, `SourceFile` in `include/sigflow/source.hpp`, 13 unit tests,
       6 goldens (`tests/golden/lex_*.sf`, `empty_program.sf`).
-- [ ] **[J]** `src/parser.cpp`, recursive descent. Grammar changes are recorded in
+- [x] **[J]** `src/parser.cpp`, recursive descent. Grammar changes are recorded in
       `compiler/README.md`. **[A]** one positive and one negative golden per grammar rule.
+      Done 2026-10-27: AST in `include/sigflow/ast.hpp`, `--emit=ast`, panic-mode recovery
+      (one error per statement, parsing resumes at the next line), 8 unit tests, 6 goldens
+      (`tests/golden/parse_*.sf`).
 - [ ] **[J]** `src/sema.cpp`: name resolution, argument, type, and sample-rate checks.
       **[A]** negative goldens (unknown name, wrong argument count, unknown keyword argument,
       type mismatch, rate mismatch).

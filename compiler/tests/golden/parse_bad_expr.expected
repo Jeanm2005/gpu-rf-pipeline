@@ -1,0 +1,13 @@
+parse_bad_expr.sf:3:4: error: expected an expression, found end of line
+  a =
+     ^
+parse_bad_expr.sf:4:10: error: expected an operation name after '|>', found '('
+  b = a |> (fir)
+           ^
+parse_bad_expr.sf:5:28: error: expected ')' to close the parenthesized expression, found end of line
+  c = (a |> fir(taps="h.f32")
+                             ^
+parse_bad_expr.sf:6:11: error: expected ',' or ')' in the arguments of 'fir', found identifier 'taps'
+  d = fir(a taps="h.f32")
+            ^~~~
+[exit 1]

@@ -1,0 +1,5 @@
+# args: --emit=ast
+# term = "(" expr ")" and a call with no arguments.
+c = xcorr((capture("a.cf32", rate=1e6) |> fir(taps="h.f32")), b)
+d = (c)
+e = f()

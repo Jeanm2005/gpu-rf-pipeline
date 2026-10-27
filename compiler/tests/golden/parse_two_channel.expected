@@ -1,0 +1,32 @@
+program
+  binding a @3:1
+    call capture @3:8
+      string "fixtures/ch0.cf32" @3:16
+      kwarg rate = number 2.4e6 @3:37
+  binding b @4:1
+    call capture @4:8
+      string "fixtures/ch1.cf32" @4:16
+      kwarg rate = number 2.4e6 @4:37
+  binding la @5:1
+    pipe @5:8
+      name a @5:8
+      call fir @5:13
+        kwarg taps = string "fixtures/lowpass.f32" @5:17
+  binding lb @6:1
+    pipe @6:8
+      name b @6:8
+      call fir @6:13
+        kwarg taps = string "fixtures/lowpass.f32" @6:17
+  binding spec @7:1
+    pipe @7:8
+      pipe @7:8
+        name la @7:8
+        call fft @7:14
+          kwarg n = number 1024 @7:18
+      call magnitude (bare) @7:29
+  binding corr @8:1
+    call xcorr @8:8
+      name la @8:14
+      name lb @8:18
+  emit spec -> "out/spectrum.f32" @10:1
+  emit corr -> "out/xcorr.cf32" @11:1

@@ -1,0 +1,6 @@
+# args: --emit=ast
+# expr / term / call: missing expression, missing operation after |>, unclosed parentheses.
+a =
+b = a |> (fir)
+c = (a |> fir(taps="h.f32")
+d = fir(a taps="h.f32")

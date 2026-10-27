@@ -29,8 +29,8 @@ code generation.
 
 | Stage | What it does | Phase | Status |
 |---|---|---|---|
-| Lexer | Source text → tokens, with line/column positions | A | ⬜ |
-| Parser | Recursive descent → AST (abstract syntax tree) | A | ⬜ |
+| Lexer | Source text → tokens, with line/column positions | A | ✅ |
+| Parser | Recursive descent → AST (abstract syntax tree) | A | ✅ |
 | Semantic analysis | Name resolution; type, argument, and sample-rate checks | A | ⬜ |
 | IR builder | AST → DAG (directed acyclic graph) of operations | A | ⬜ |
 | Scheduler | Topological sort (Kahn's algorithm), cycle detection, source-order tie-breaking | A | ⬜ |
@@ -51,7 +51,7 @@ statement  = ( binding | emit ) NEWLINE ;
 binding    = IDENT "=" expr ;
 emit       = "emit" IDENT "->" STRING ;
 expr       = term { "|>" call } ;               (* a |> f(x) means f(a, x) *)
-term       = call | IDENT | "(" expr ")" ;
+term       = call | IDENT | literal | "(" expr ")" ;
 call       = IDENT "(" [ arg_list ] ")" | IDENT ;
 arg_list   = arg { "," arg } ;
 arg        = IDENT "=" literal | expr ;         (* keyword args come after positional *)
@@ -64,7 +64,16 @@ comment    = "#" { any character } NEWLINE ;
 ```
 
 The grammar is a starting draft. Ambiguities and changes found while building the parser are
-recorded here.
+recorded here:
+
+- `term` accepts a `literal` (2026-10-27). The first draft had none, so `capture`'s positional
+  path string could not be parsed.
+- `call = IDENT` and `term = IDENT` overlap. The parser reads a bare `IDENT` as a call only on
+  the right of `|>` (`x |> magnitude`); everywhere else it is a reference to a binding.
+- `arg` needs two tokens of lookahead: `IDENT "="` starts a keyword argument, any other `IDENT`
+  starts an expression.
+- Lexing details: a `+` is accepted after the exponent marker (`1e+6`), and `\r\n` line endings
+  are accepted.
 
 ### Types
 

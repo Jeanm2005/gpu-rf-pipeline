@@ -1,0 +1,10 @@
+parse_bad_args.sf:3:17: error: expected a number or a string as the value of keyword argument 'taps', found identifier 'lowpass'
+  a = fir(x, taps=lowpass)
+                  ^~~~~~~
+parse_bad_args.sf:4:23: error: positional argument after keyword argument 'taps'
+  b = fir(taps="h.f32", x)
+                        ^
+parse_bad_args.sf:5:11: error: expected an expression, found ')'
+  c = fir(x,)
+            ^
+[exit 1]
