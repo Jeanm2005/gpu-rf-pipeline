@@ -1,0 +1,23 @@
+{
+  "nodes": [
+    {"id": 0, "op": "capture", "type": "stream<cf32>", "rate": "2.4e6", "name": "a", "path": "fixtures/ch0.cf32", "line": 2, "column": 8},
+    {"id": 1, "op": "capture", "type": "stream<cf32>", "rate": "2.4e6", "name": "b", "path": "fixtures/ch1.cf32", "line": 3, "column": 8},
+    {"id": 2, "op": "fir", "type": "stream<cf32>", "rate": "2.4e6", "name": "la", "taps": "fixtures/lowpass.f32", "line": 4, "column": 13},
+    {"id": 3, "op": "fir", "type": "stream<cf32>", "rate": "2.4e6", "name": "lb", "taps": "fixtures/lowpass.f32", "line": 5, "column": 13},
+    {"id": 4, "op": "fft", "type": "frames<cf32, 1024>", "rate": "2.4e6", "n": 1024, "line": 6, "column": 14},
+    {"id": 5, "op": "magnitude", "type": "frames<f32, 1024>", "rate": "2.4e6", "name": "spec", "line": 6, "column": 29},
+    {"id": 6, "op": "xcorr", "type": "stream<cf32>", "rate": "2.4e6", "name": "corr", "line": 7, "column": 8},
+    {"id": 7, "op": "emit", "path": "out/spectrum.f32", "line": 9, "column": 1},
+    {"id": 8, "op": "emit", "path": "out/xcorr.cf32", "line": 10, "column": 1}
+  ],
+  "edges": [
+    {"from": 0, "to": 2, "input": 0},
+    {"from": 1, "to": 3, "input": 0},
+    {"from": 2, "to": 4, "input": 0},
+    {"from": 4, "to": 5, "input": 0},
+    {"from": 2, "to": 6, "input": 0},
+    {"from": 3, "to": 6, "input": 1},
+    {"from": 5, "to": 7, "input": 0},
+    {"from": 6, "to": 8, "input": 0}
+  ]
+}

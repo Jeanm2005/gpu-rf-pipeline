@@ -1,0 +1,8 @@
+# args: --emit=ir
+# Bindings used before their definition, an alias, and a binding nothing uses.
+emit corr -> "out/xcorr.cf32"
+corr   = xcorr(la, la_too)
+la_too = la
+la     = a |> fir(taps="fixtures/lowpass.f32")
+unused = a |> fft(n=256)
+a      = capture("fixtures/ch0.cf32", rate=2.4e6)

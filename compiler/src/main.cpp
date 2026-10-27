@@ -1,6 +1,6 @@
 // sigflowc: the SigFlow compiler command line.
 //
-//   sigflowc PROGRAM.sf --emit=tokens|ast|check
+//   sigflowc PROGRAM.sf --emit=tokens|ast|check|ir|json
 //   sigflowc --update-golden tests/golden
 //
 // See compiler/README.md for the language and compiler/AGENTS.md for every --emit mode planned.
@@ -22,7 +22,9 @@ void print_usage(std::ostream& out)
            "--emit modes:\n"
            "  tokens    lexer output, one token per line\n"
            "  ast       parser output, one node per line\n"
-           "  check     run every check, print only diagnostics\n";
+           "  check     run every check, print only diagnostics\n"
+           "  ir        graph IR, one node per line\n"
+           "  json      graph IR as JSON, for the DAG viewer\n";
 }
 
 }  // namespace

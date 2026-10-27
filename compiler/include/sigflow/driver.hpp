@@ -14,6 +14,8 @@ enum class EmitMode {
     Tokens,
     Ast,
     Check,  // run every check and print nothing; the exit code says whether it passed
+    Ir,
+    Json,
 };
 
 struct Options {

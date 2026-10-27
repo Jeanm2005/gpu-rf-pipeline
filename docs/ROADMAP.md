@@ -199,7 +199,7 @@ between kernel work and compiler work. Phase C needs the MVP profiling numbers a
       `FetchContent` with a placeholder test. Validated against `cmake -E echo` since `sigflowc`
       doesn't exist yet. The `--update-golden tests/golden` form on the binary itself (per
       `compiler/AGENTS.md`'s quick start) is still pending; it lands with `src/main.cpp` below.
-- [ ] **[J]** Design the token, AST, and IR data structures. Tokens and AST done 2026-10-27. **[A]** fills in header boilerplate
+- [ ] **[J]** Design the token, AST, and IR data structures. Tokens, AST, and IR done 2026-10-27. **[A]** fills in header boilerplate
       once they are designed.
 - [ ] **[A]** `src/main.cpp` (`--emit=tokens|ast|ir|schedule|json`, `-o`) and the diagnostics
       printer (file, line, column, source line with a caret). Diagnostics done 2026-10-26:
@@ -225,7 +225,11 @@ between kernel work and compiler work. Phase C needs the MVP profiling numbers a
       a warning when an emit path's extension does not match the type, 12 unit tests, 11
       goldens (`tests/golden/sema_*.sf`) covering every required negative case, including the
       cycle and the empty program.
-- [ ] **[J+A]** IR builder (AST to DAG) and the text and JSON dumps.
+- [x] **[J+A]** IR builder (AST to DAG) and the text and JSON dumps. Done 2026-10-27:
+      `include/sigflow/ir.hpp` (`Graph`, `Node`, `Op`), `src/ir_builder.cpp`, `--emit=ir`
+      and `--emit=json`; pipes become ordinary inputs, a shared binding is one node, an alias
+      adds none. 5 unit tests, 3 goldens (`ir_two_channel`, `ir_out_of_order`,
+      `json_two_channel`).
 - [ ] **[J]** `src/schedule.cpp`: Kahn's algorithm, cycle detection, source-order tie-breaking.
       **[A]** unit tests on hand-built graphs.
 - [ ] **[J+A]** Dead-node elimination with `--no-dce`.

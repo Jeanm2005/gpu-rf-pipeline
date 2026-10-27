@@ -15,6 +15,7 @@ add_library(sigflow_core STATIC
   src/ast.cpp
   src/diagnostics.cpp
   src/driver.cpp
+  src/ir_builder.cpp
   src/lexer.cpp
   src/parser.cpp
   src/sema.cpp

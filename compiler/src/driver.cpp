@@ -1,6 +1,7 @@
 #include "sigflow/driver.hpp"
 
 #include "sigflow/diagnostics.hpp"
+#include "sigflow/ir.hpp"
 #include "sigflow/lexer.hpp"
 #include "sigflow/parser.hpp"
 #include "sigflow/sema.hpp"
@@ -50,6 +51,14 @@ bool parse_emit(const std::string& value, EmitMode& mode)
         mode = EmitMode::Check;
         return true;
     }
+    if (value == "ir") {
+        mode = EmitMode::Ir;
+        return true;
+    }
+    if (value == "json") {
+        mode = EmitMode::Json;
+        return true;
+    }
     return false;
 }
 
@@ -79,7 +88,7 @@ bool parse_options(const std::vector<std::string>& args, Options& options, std::
         if (arg.compare(0, 7, "--emit=") == 0) {
             if (!parse_emit(arg.substr(7), options.emit)) {
                 err << "sigflowc: error: unknown --emit mode '" << arg.substr(7)
-                    << "' (available: tokens, ast, check)\n";
+                    << "' (available: tokens, ast, check, ir, json)\n";
                 return false;
             }
         } else if (!arg.empty() && arg[0] == '-') {
@@ -150,6 +159,17 @@ int compile(const Options& options, std::ostream& out, std::ostream& err)
         return kExitCompileError;
     }
     diagnostics.print(err);
+    if (options.emit == EmitMode::Check) {
+        return kExitOk;
+    }
+
+    // From here on only the IR is used (compiler/AGENTS.md: no backend code reads the AST).
+    const Graph graph = build_ir(program, sema);
+    if (options.emit == EmitMode::Json) {
+        print_ir_json(graph, out);
+    } else {
+        print_ir(graph, out);
+    }
     return kExitOk;
 }
 

@@ -32,7 +32,7 @@ code generation.
 | Lexer | Source text → tokens, with line/column positions | A | ✅ |
 | Parser | Recursive descent → AST (abstract syntax tree) | A | ✅ |
 | Semantic analysis | Name resolution; type, argument, and sample-rate checks | A | ✅ |
-| IR builder | AST → DAG (directed acyclic graph) of operations | A | ⬜ |
+| IR builder | AST → DAG (directed acyclic graph) of operations | A | ✅ |
 | Scheduler | Topological sort (Kahn's algorithm), cycle detection, source-order tie-breaking | A | ⬜ |
 | Dead-node elimination | Drops stages that no `emit` depends on | A | ⬜ |
 | Script backend | Emits an `rfgpu` command script | A | ⬜ |
