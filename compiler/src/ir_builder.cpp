@@ -130,31 +130,6 @@ private:
     std::map<std::string, NodeId> binding_nodes_;
 };
 
-std::string json_escape(const std::string& text)
-{
-    std::string out;
-    for (char c : text) {
-        switch (c) {
-        case '"':
-            out += "\\\"";
-            break;
-        case '\\':
-            out += "\\\\";
-            break;
-        default:
-            if (static_cast<unsigned char>(c) < 0x20) {
-                static const char* hex = "0123456789abcdef";
-                out += "\\u00";
-                out += hex[(c >> 4) & 0xf];
-                out += hex[c & 0xf];
-            } else {
-                out += c;
-            }
-        }
-    }
-    return out;
-}
-
 }  // namespace
 
 const char* op_name(Op op)
@@ -228,51 +203,6 @@ void print_ir(const Graph& graph, std::ostream& out)
             out << format_node(node) << "\n";
         }
     }
-}
-
-void print_ir_json(const Graph& graph, std::ostream& out)
-{
-    out << "{\n  \"nodes\": [";
-    bool first = true;
-    for (const Node& node : graph.nodes) {
-        if (!graph.live[static_cast<std::size_t>(node.id)]) {
-            continue;
-        }
-        out << (first ? "\n" : ",\n") << "    {\"id\": " << node.id << ", \"op\": \""
-            << op_name(node.op) << "\"";
-        first = false;
-        if (node.op != Op::Emit) {
-            out << ", \"type\": \"" << type_name(node.type) << "\", \"rate\": \""
-                << json_escape(node.type.rate_text) << "\"";
-        }
-        if (!node.name.empty()) {
-            out << ", \"name\": \"" << json_escape(node.name) << "\"";
-        }
-        if (!node.path.empty()) {
-            out << ", \"path\": \"" << json_escape(node.path) << "\"";
-        }
-        if (node.op == Op::Fir) {
-            out << ", \"taps\": \"" << json_escape(node.taps) << "\"";
-        }
-        if (node.op == Op::Fft) {
-            out << ", \"n\": " << node.n;
-        }
-        out << ", \"line\": " << node.range.loc.line << ", \"column\": "
-            << node.range.loc.column << "}";
-    }
-    out << "\n  ],\n  \"edges\": [";
-    first = true;
-    for (const Node& node : graph.nodes) {
-        if (!graph.live[static_cast<std::size_t>(node.id)]) {
-            continue;
-        }
-        for (std::size_t i = 0; i < node.inputs.size(); ++i) {
-            out << (first ? "\n" : ",\n") << "    {\"from\": " << node.inputs[i]
-                << ", \"to\": " << node.id << ", \"input\": " << i << "}";
-            first = false;
-        }
-    }
-    out << "\n  ]\n}\n";
 }
 
 }  // namespace sigflow

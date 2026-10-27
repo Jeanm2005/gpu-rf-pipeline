@@ -3,6 +3,7 @@
 #include "sigflow/backend_script.hpp"
 #include "sigflow/diagnostics.hpp"
 #include "sigflow/ir.hpp"
+#include "sigflow/json.hpp"
 #include "sigflow/lexer.hpp"
 #include "sigflow/liveness.hpp"
 #include "sigflow/parser.hpp"
@@ -219,7 +220,8 @@ int compile(const Options& options, std::ostream& out, std::ostream& err)
                        out);
         break;
     case EmitMode::Json:
-        print_ir_json(graph, out);
+        print_json(graph, options.dce, order, liveness,
+                   value_bytes(graph, options.input_dir), out);
         break;
     case EmitMode::Script:
         emit_script(graph, order, liveness, options.display_path, out);

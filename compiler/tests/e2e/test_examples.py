@@ -79,6 +79,8 @@ def evaluate(graph: dict, workdir: Path) -> dict[int, np.ndarray]:
 
     values: dict[int, np.ndarray] = {}
     for node in sorted(graph["nodes"], key=lambda n: n["id"]):
+        if not node["live"]:
+            continue
         args = [values[i] for i in inputs.get(node["id"], [])]
         op = node["op"]
         if op == "capture":

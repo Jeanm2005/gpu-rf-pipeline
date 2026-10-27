@@ -1,0 +1,22 @@
+{
+  "passes": ["build", "dce"],
+  "nodes": [
+    {"id": 0, "op": "capture", "type": "stream<cf32>", "rate": "1e6", "name": "a", "path": "fixtures/ch0.cf32", "line": 3, "column": 9, "live": true, "step": 0, "live_range": [0, 2], "slot": 0, "bytes": 131072},
+    {"id": 1, "op": "capture", "type": "stream<cf32>", "rate": "1e6", "name": "b", "path": "fixtures/ch1.cf32", "line": 4, "column": 9, "live": true, "step": 1, "live_range": [1, 3], "slot": 1, "bytes": 131072},
+    {"id": 2, "op": "fir", "type": "stream<cf32>", "rate": "1e6", "name": "la", "taps": "fixtures/lowpass.f32", "line": 5, "column": 14, "live": true, "step": 2, "live_range": [2, 3], "slot": 2, "bytes": 131072},
+    {"id": 3, "op": "fft", "type": "frames<cf32, 1024>", "rate": "1e6", "n": 1024, "line": 6, "column": 14, "live": false, "removed_by": "dce"},
+    {"id": 4, "op": "magnitude", "type": "frames<f32, 1024>", "rate": "1e6", "name": "spec", "line": 6, "column": 29, "live": false, "removed_by": "dce"},
+    {"id": 5, "op": "xcorr", "type": "stream<cf32>", "rate": "1e6", "name": "corr", "line": 7, "column": 9, "live": true, "step": 3, "live_range": [3, 4], "slot": 0, "bytes": 262136},
+    {"id": 6, "op": "emit", "path": "out/xcorr.cf32", "line": 8, "column": 1, "live": true, "step": 4}
+  ],
+  "edges": [
+    {"from": 0, "to": 2, "input": 0},
+    {"from": 0, "to": 3, "input": 0},
+    {"from": 3, "to": 4, "input": 0},
+    {"from": 2, "to": 5, "input": 0},
+    {"from": 1, "to": 5, "input": 1},
+    {"from": 5, "to": 6, "input": 0}
+  ],
+  "schedule": [0, 1, 2, 5, 6],
+  "slots": 3
+}

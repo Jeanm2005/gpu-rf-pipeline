@@ -67,7 +67,4 @@ std::string format_node(const Node& node);
 // Text form used by --emit=ir: format_node() of every live node, one per line, in id order.
 void print_ir(const Graph& graph, std::ostream& out);
 
-// JSON form used by --emit=json, for the DAG viewer: {"nodes": [...], "edges": [...]}.
-void print_ir_json(const Graph& graph, std::ostream& out);
-
 }  // namespace sigflow

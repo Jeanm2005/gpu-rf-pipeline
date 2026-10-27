@@ -1,0 +1,8 @@
+# args: --emit=json --input-dir=../../../tests
+# Everything the viewer needs: a node removed by dce, the schedule, live ranges, slots, bytes.
+a     = capture("fixtures/ch0.cf32", rate=1e6)
+b     = capture("fixtures/ch1.cf32", rate=1e6)
+la    = a |> fir(taps="fixtures/lowpass.f32")
+spec  = a |> fft(n=1024) |> magnitude
+corr  = xcorr(la, b)
+emit corr -> "out/xcorr.cf32"
