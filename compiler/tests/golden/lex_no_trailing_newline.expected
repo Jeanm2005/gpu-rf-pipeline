@@ -1,0 +1,6 @@
+2:1 EMIT emit
+2:6 IDENT a
+2:8 ARROW ->
+2:11 STRING "out/a.cf32"
+2:23 NEWLINE
+2:23 EOF

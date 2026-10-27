@@ -1,0 +1,3 @@
+# args: --emit=tokens
+a = capture("fixtures/ch0.cf32, rate=2.4e6)
+emit a -> "out/a.cf32"

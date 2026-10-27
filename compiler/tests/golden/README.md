@@ -1,30 +1,33 @@
 # Golden tests
 
-Each case is registered in `tests/CMakeLists.txt` with `add_golden_test()`
-(`cmake/SigflowGoldenTest.cmake`): it runs a command and compares its stdout, byte for byte,
-against a committed `<name>.expected` file.
+Each `<name>.sf` here is one case. `tests/CMakeLists.txt` registers every one of them
+automatically (`add_sigflowc_golden_tests()` in `cmake/SigflowGoldenTest.cmake`): CTest runs
 
-There are no `sigflowc` cases yet: the binary doesn't exist until the lexer, parser, and
-semantic analysis are written (see `../../docs/ROADMAP.md`, phase A). `harness_smoke` is a
-placeholder that runs `cmake -E echo` instead, to prove the mechanism works; delete it once the
-first real case (for example an empty-program or lexer golden) is registered.
-
-Once `sigflowc` exists, a typical case will look like:
-
-```cmake
-add_golden_test(empty_program
-  COMMAND $<TARGET_FILE:sigflowc> ${CMAKE_CURRENT_SOURCE_DIR}/golden/empty_program.sf --emit=tokens
-  EXPECTED ${CMAKE_CURRENT_SOURCE_DIR}/golden/empty_program.expected
-)
+```bash
+sigflowc <flags> <name>.sf      # from this directory, so diagnostics print the bare file name
 ```
 
-To add or refresh a golden file:
+and compares its stdout and stderr together, byte for byte, against `<name>.expected`. A
+non-zero exit code is recorded as a final `[exit N]` line, so negative cases pin both the
+diagnostics and the failure.
+
+The flags come from the first line of the program:
+
+```
+# args: --emit=tokens
+```
+
+Naming: `lex_*`, `parse_*`, `sema_*`, ... for the stage a case exercises; positive and negative
+cases sit side by side (`compiler/AGENTS.md` asks for at least one of each per grammar rule).
+
+To add or refresh golden files:
 
 ```bash
 ctest --test-dir build -R golden_<name> --output-on-failure   # see what changed
-cmake --build build --target update_golden_<name>              # regenerate EXPECTED
-git diff tests/golden/<name>.expected                          # review before committing
+./build/sigflowc --update-golden tests/golden                  # regenerate every .expected
+git diff tests/golden                                          # review before committing
 ```
 
-Per `compiler/AGENTS.md`, a golden change must be explained in the commit message, and this is
-done only when the owner asks.
+`cmake --build build --target update_golden_<name>` regenerates a single case through the same
+CMake runner CTest uses. Per `compiler/AGENTS.md`, a golden change must be explained in the
+commit message.

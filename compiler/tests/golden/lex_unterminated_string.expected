@@ -1,0 +1,4 @@
+lex_unterminated_string.sf:2:13: error: unterminated string
+  a = capture("fixtures/ch0.cf32, rate=2.4e6)
+              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[exit 1]

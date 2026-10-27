@@ -1,0 +1,2 @@
+# args: --emit=tokens
+emit a -> "out/a.cf32"

@@ -1,0 +1,7 @@
+lex_stray_character.sf:2:46: error: unexpected character '$'
+  a = capture("fixtures/ch0.cf32", rate=2.4e6) $
+                                               ^
+lex_stray_character.sf:3:7: error: unexpected character '|'; did you mean '|>'?
+  b = a | fir(taps="fixtures/lowpass.f32")
+        ^
+[exit 1]

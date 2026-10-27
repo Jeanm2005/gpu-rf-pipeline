@@ -1,0 +1,4 @@
+lex_malformed_number.sf:2:39: error: malformed number '2.4e': expected a digit after 'e'
+  a = capture("fixtures/ch0.cf32", rate=2.4e)
+                                        ^~~~
+[exit 1]
