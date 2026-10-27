@@ -1,0 +1,10 @@
+# args: --emit=check
+# Positive: the README example checks cleanly, so there is no output at all.
+emit corr -> "out/xcorr.cf32"
+a    = capture("fixtures/ch0.cf32", rate=2.4e6)
+b    = capture("fixtures/ch1.cf32", rate=2400000)
+la   = a |> fir(taps="fixtures/lowpass.f32")
+lb   = b |> fir(taps="fixtures/lowpass.f32")
+spec = (la |> fft(n=1024)) |> magnitude
+corr = xcorr(la, lb)
+emit spec -> "out/spectrum.f32"

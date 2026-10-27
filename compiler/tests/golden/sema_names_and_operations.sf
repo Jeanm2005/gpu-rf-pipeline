@@ -1,0 +1,8 @@
+# args: --emit=check
+a = capture("fixtures/ch0.cf32", rate=2.4e6)
+a = capture("fixtures/ch1.cf32", rate=2.4e6)
+m = magnitude
+f = a(1)
+g = a |> lowpass(taps="h.f32")
+emit a -> "out/a.cf32"
+emit a -> "out/a.cf32"

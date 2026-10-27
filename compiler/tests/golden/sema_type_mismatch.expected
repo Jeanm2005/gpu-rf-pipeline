@@ -1,0 +1,10 @@
+sema_type_mismatch.sf:3:8: error: magnitude expects frames<cf32, N>, got stream<cf32>; apply fft(n=...) first
+  mag  = a |> magnitude
+         ^
+sema_type_mismatch.sf:5:8: error: fir expects stream<cf32> as argument 1, got frames<cf32, 1024>
+  low  = spec |> fir(taps="fixtures/lowpass.f32")
+         ^~~~
+sema_type_mismatch.sf:6:17: error: xcorr expects a signal as argument 2, got a string literal
+  c    = xcorr(a, "fixtures/ch1.cf32")
+                  ^~~~~~~~~~~~~~~~~~~
+[exit 1]

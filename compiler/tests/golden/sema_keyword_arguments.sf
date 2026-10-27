@@ -1,0 +1,8 @@
+# args: --emit=check
+a = capture("fixtures/ch0.cf32", rate=2.4e6)
+b = a |> fir(tap="fixtures/lowpass.f32")
+c = a |> fir()
+d = a |> fft(n="1024")
+e = a |> fir(taps="h.f32", taps="g.f32")
+f = a |> fft(n=1024) |> magnitude(scale=2)
+emit b -> "out/b.cf32"

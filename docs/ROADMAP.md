@@ -218,9 +218,13 @@ between kernel work and compiler work. Phase C needs the MVP profiling numbers a
       Done 2026-10-27: AST in `include/sigflow/ast.hpp`, `--emit=ast`, panic-mode recovery
       (one error per statement, parsing resumes at the next line), 8 unit tests, 6 goldens
       (`tests/golden/parse_*.sf`).
-- [ ] **[J]** `src/sema.cpp`: name resolution, argument, type, and sample-rate checks.
+- [x] **[J]** `src/sema.cpp`: name resolution, argument, type, and sample-rate checks.
       **[A]** negative goldens (unknown name, wrong argument count, unknown keyword argument,
-      type mismatch, rate mismatch).
+      type mismatch, rate mismatch). Done 2026-10-27: types in `include/sigflow/types.hpp`,
+      `--emit=check`, declarative bindings with cycle detection (reported as `a -> b -> a`),
+      a warning when an emit path's extension does not match the type, 12 unit tests, 11
+      goldens (`tests/golden/sema_*.sf`) covering every required negative case, including the
+      cycle and the empty program.
 - [ ] **[J+A]** IR builder (AST to DAG) and the text and JSON dumps.
 - [ ] **[J]** `src/schedule.cpp`: Kahn's algorithm, cycle detection, source-order tie-breaking.
       **[A]** unit tests on hand-built graphs.

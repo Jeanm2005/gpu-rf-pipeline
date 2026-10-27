@@ -1,0 +1,5 @@
+# args: --emit=check
+a = capture("fixtures/ch0.cf32", rate=2.4e6)
+la = b |> fir(taps="fixtures/lowpass.f32")
+emit la -> "out/la.cf32"
+emit nothing -> "out/nothing.cf32"

@@ -1,0 +1,7 @@
+# args: --emit=check
+a    = capture("fixtures/ch0.cf32", rate=2.4e6)
+mag  = a |> magnitude
+spec = a |> fft(n=1024)
+low  = spec |> fir(taps="fixtures/lowpass.f32")
+c    = xcorr(a, "fixtures/ch1.cf32")
+emit mag -> "out/mag.f32"

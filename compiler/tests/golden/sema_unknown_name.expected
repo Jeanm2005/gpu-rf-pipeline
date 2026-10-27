@@ -1,0 +1,7 @@
+sema_unknown_name.sf:3:6: error: unknown name 'b'
+  la = b |> fir(taps="fixtures/lowpass.f32")
+       ^
+sema_unknown_name.sf:5:6: error: unknown name 'nothing'
+  emit nothing -> "out/nothing.cf32"
+       ^~~~~~~
+[exit 1]

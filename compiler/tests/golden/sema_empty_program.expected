@@ -1,0 +1,4 @@
+sema_empty_program.sf:1:1: error: program has no 'emit' statements, so there is nothing to compute
+  # args: --emit=check
+  ^
+[exit 1]

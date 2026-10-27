@@ -1,0 +1,5 @@
+# args: --emit=check
+# A warning alone does not fail the check.
+a = capture("fixtures/ch0.cf32", rate=2.4e6)
+s = a |> fft(n=1024) |> magnitude
+emit s -> "out/spectrum.cf32"

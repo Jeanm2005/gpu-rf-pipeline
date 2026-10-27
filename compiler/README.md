@@ -31,7 +31,7 @@ code generation.
 |---|---|---|---|
 | Lexer | Source text → tokens, with line/column positions | A | ✅ |
 | Parser | Recursive descent → AST (abstract syntax tree) | A | ✅ |
-| Semantic analysis | Name resolution; type, argument, and sample-rate checks | A | ⬜ |
+| Semantic analysis | Name resolution; type, argument, and sample-rate checks | A | ✅ |
 | IR builder | AST → DAG (directed acyclic graph) of operations | A | ⬜ |
 | Scheduler | Topological sort (Kahn's algorithm), cycle detection, source-order tie-breaking | A | ⬜ |
 | Dead-node elimination | Drops stages that no `emit` depends on | A | ⬜ |
@@ -70,6 +70,9 @@ recorded here:
   path string could not be parsed.
 - `call = IDENT` and `term = IDENT` overlap. The parser reads a bare `IDENT` as a call only on
   the right of `|>` (`x |> magnitude`); everywhere else it is a reference to a binding.
+- Bindings are declarative (2026-10-27): a name may be used on a line before the one that
+  defines it. That is what makes the program a graph to schedule rather than a list, and what
+  makes a cycle (`x = xcorr(a, y)`, `y = x |> fir(...)`) possible and worth reporting.
 - `arg` needs two tokens of lookahead: `IDENT "="` starts a keyword argument, any other `IDENT`
   starts an expression.
 - Lexing details: a `+` is accepted after the exponent marker (`1e+6`), and `\r\n` line endings

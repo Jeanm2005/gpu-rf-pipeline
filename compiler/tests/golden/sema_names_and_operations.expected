@@ -1,0 +1,16 @@
+sema_names_and_operations.sf:3:1: error: redefinition of 'a' (first defined on line 2)
+  a = capture("fixtures/ch1.cf32", rate=2.4e6)
+  ^
+sema_names_and_operations.sf:4:5: error: 'magnitude' is an operation, not a binding; call it as magnitude(...) or after '|>'
+  m = magnitude
+      ^~~~~~~~~
+sema_names_and_operations.sf:5:5: error: 'a' is a binding, not an operation
+  f = a(1)
+      ^
+sema_names_and_operations.sf:6:10: error: unknown operation 'lowpass' (available: capture, fft, fir, magnitude, xcorr)
+  g = a |> lowpass(taps="h.f32")
+           ^~~~~~~
+sema_names_and_operations.sf:8:11: error: "out/a.cf32" is already written by the emit on line 7
+  emit a -> "out/a.cf32"
+            ^~~~~~~~~~~~
+[exit 1]

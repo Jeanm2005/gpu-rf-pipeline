@@ -1,0 +1,7 @@
+sema_cycle.sf:4:6: error: cycle: 'x' depends on itself (x -> y -> x)
+  y  = x |> fir(taps="fixtures/lowpass.f32")
+       ^
+sema_cycle.sf:5:6: error: cycle: 'z' depends on itself (z -> z)
+  z  = z |> fir(taps="fixtures/lowpass.f32")
+       ^
+[exit 1]

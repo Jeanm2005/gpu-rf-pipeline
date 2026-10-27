@@ -1,0 +1,3 @@
+sema_extension_warning.sf:5:11: warning: 's' is frames<f32, 1024>, which is written as raw f32; the path does not end in .f32
+  emit s -> "out/spectrum.cf32"
+            ^~~~~~~~~~~~~~~~~~~

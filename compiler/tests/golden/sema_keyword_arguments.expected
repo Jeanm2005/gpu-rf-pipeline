@@ -1,0 +1,16 @@
+sema_keyword_arguments.sf:3:14: error: fir has no keyword argument 'tap' (expected: taps)
+  b = a |> fir(tap="fixtures/lowpass.f32")
+               ^~~
+sema_keyword_arguments.sf:4:10: error: fir requires keyword argument 'taps'
+  c = a |> fir()
+           ^~~
+sema_keyword_arguments.sf:5:16: error: keyword argument 'n' of fft must be a number, got a string
+  d = a |> fft(n="1024")
+                 ^~~~~~
+sema_keyword_arguments.sf:6:28: error: duplicate keyword argument 'taps'
+  e = a |> fir(taps="h.f32", taps="g.f32")
+                             ^~~~
+sema_keyword_arguments.sf:7:35: error: magnitude has no keyword argument 'scale' (it takes none)
+  f = a |> fft(n=1024) |> magnitude(scale=2)
+                                    ^~~~~
+[exit 1]

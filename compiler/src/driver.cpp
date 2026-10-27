@@ -3,6 +3,7 @@
 #include "sigflow/diagnostics.hpp"
 #include "sigflow/lexer.hpp"
 #include "sigflow/parser.hpp"
+#include "sigflow/sema.hpp"
 #include "sigflow/source.hpp"
 
 #include <algorithm>
@@ -45,6 +46,10 @@ bool parse_emit(const std::string& value, EmitMode& mode)
         mode = EmitMode::Ast;
         return true;
     }
+    if (value == "check") {
+        mode = EmitMode::Check;
+        return true;
+    }
     return false;
 }
 
@@ -74,7 +79,7 @@ bool parse_options(const std::vector<std::string>& args, Options& options, std::
         if (arg.compare(0, 7, "--emit=") == 0) {
             if (!parse_emit(arg.substr(7), options.emit)) {
                 err << "sigflowc: error: unknown --emit mode '" << arg.substr(7)
-                    << "' (available: tokens, ast)\n";
+                    << "' (available: tokens, ast, check)\n";
                 return false;
             }
         } else if (!arg.empty() && arg[0] == '-') {
@@ -134,8 +139,17 @@ int compile(const Options& options, std::ostream& out, std::ostream& err)
     if (failed()) {
         return kExitCompileError;
     }
+    if (options.emit == EmitMode::Ast) {
+        diagnostics.print(err);
+        print_ast(program, out);
+        return kExitOk;
+    }
+
+    const SemaResult sema = analyze(program, source, diagnostics);
+    if (failed()) {
+        return kExitCompileError;
+    }
     diagnostics.print(err);
-    print_ast(program, out);
     return kExitOk;
 }
 

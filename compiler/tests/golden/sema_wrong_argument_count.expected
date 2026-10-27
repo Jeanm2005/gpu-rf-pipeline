@@ -1,0 +1,10 @@
+sema_wrong_argument_count.sf:3:5: error: capture expects 1 positional argument, got 2
+  b = capture("fixtures/ch1.cf32", "extra", rate=2.4e6)
+      ^~~~~~~
+sema_wrong_argument_count.sf:4:5: error: xcorr expects 2 positional arguments, got 1
+  c = xcorr(a)
+      ^~~~~
+sema_wrong_argument_count.sf:5:10: error: xcorr expects 2 positional arguments, got 3 (counting the input piped in with '|>')
+  d = a |> xcorr(a, a)
+           ^~~~~
+[exit 1]

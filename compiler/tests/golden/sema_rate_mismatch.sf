@@ -1,0 +1,5 @@
+# args: --emit=check
+a = capture("fixtures/ch0.cf32", rate=2.4e6)
+b = capture("fixtures/ch1.cf32", rate=1.2e6)
+c = xcorr(a, b)
+emit c -> "out/xcorr.cf32"

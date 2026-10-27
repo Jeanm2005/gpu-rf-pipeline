@@ -1,0 +1,4 @@
+sema_rate_mismatch.sf:4:5: error: xcorr inputs have different sample rates (2.4e6 vs 1.2e6)
+  c = xcorr(a, b)
+      ^~~~~
+[exit 1]

@@ -1,0 +1,13 @@
+sema_bad_values.sf:2:39: error: sample rate must be a positive number, got 0
+  a = capture("fixtures/ch0.cf32", rate=0)
+                                        ^
+sema_bad_values.sf:3:13: error: capture expects a string literal path as argument 1
+  p = capture(path, rate=2.4e6)
+              ^~~~
+sema_bad_values.sf:5:16: error: fft size n must be a positive integer, got 10.5
+  s = b |> fft(n=10.5)
+                 ^~~~
+sema_bad_values.sf:6:5: error: expected a signal, found a number literal
+  n = 1024
+      ^~~~
+[exit 1]

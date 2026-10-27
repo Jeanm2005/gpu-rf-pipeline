@@ -17,6 +17,7 @@ add_library(sigflow_core STATIC
   src/driver.cpp
   src/lexer.cpp
   src/parser.cpp
+  src/sema.cpp
   src/source.cpp
 )
 target_include_directories(sigflow_core PUBLIC include)

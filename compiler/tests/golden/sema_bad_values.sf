@@ -1,0 +1,7 @@
+# args: --emit=check
+a = capture("fixtures/ch0.cf32", rate=0)
+p = capture(path, rate=2.4e6)
+b = capture("fixtures/ch1.cf32", rate=2.4e6)
+s = b |> fft(n=10.5)
+n = 1024
+emit s -> "out/s.f32"
