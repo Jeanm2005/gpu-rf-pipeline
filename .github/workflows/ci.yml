@@ -6,8 +6,11 @@
 #           fixtures byte for byte. tests/test_pipeline.py skips itself: there is no rfgpu.
 #   cuda    rfgpu compiles with CUDA 13.4 and GCC 15 (the development machine's toolchain),
 #           with every compiler warning treated as an error.
+#   sigflowc  the SigFlow compiler (compiler/) builds with warnings as errors and passes its
+#           GoogleTest unit tests and golden tests (ctest). It needs no GPU.
 #
-# The GPU tests (tests/test_pipeline.py) still have to be run locally before each commit.
+# The GPU tests (tests/test_pipeline.py and compiler/tests/e2e) still have to be run locally
+# before each commit.
 
 name: CI
 
@@ -80,3 +83,20 @@ jobs:
       # --help needs no GPU, so it at least shows the binary links and starts.
       - name: Smoke test
         run: ./build/rfgpu --help
+
+  sigflowc:
+    name: sigflowc unit and golden tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: >
+          cmake -S compiler -B compiler/build -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_COMPILE_WARNING_AS_ERROR=ON
+
+      - name: Build
+        run: cmake --build compiler/build -j
+
+      - name: Test
+        run: ctest --test-dir compiler/build --output-on-failure

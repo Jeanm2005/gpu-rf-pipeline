@@ -56,7 +56,8 @@ The reference defines what every GPU operation must compute, so it comes before 
       `nvidia/cuda:13.4.3-devel-ubuntu26.04` container (added 2026-10-23). Hosted runners have
       no GPU, so `tests/test_pipeline.py` skips there. First run on GitHub passed on
       2026-10-23 (run 40018228158). Running the GPU tests in CI would need a self-hosted runner
-      on this machine.
+      on this machine. A `sigflowc` job (build with warnings as errors, then `ctest`) was
+      added 2026-10-27.
 
 #### Toolchain notes
 
