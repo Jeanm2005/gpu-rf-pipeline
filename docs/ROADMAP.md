@@ -302,9 +302,13 @@ between kernel work and compiler work. Phase C needs the MVP profiling numbers a
       as the naive kernel). `examples/filter_bank.sf` fuses three FIRs over inputs of different
       lengths; the GPU end-to-end tests run every example by default, with `--no-reuse`, and
       with `--no-fuse` on both backends (29 tests, all passing).
-- [ ] **[J]** Measurements for `two_channel.sf`: kernel launches, peak GPU memory, end-to-end
-      time, fused against `--no-fuse`, logged in `docs/PROFILING_LOG.md`.
-- [ ] **[J+A]** `compiler/README.md` results table and stage status column.
+- [x] **[J]** Measurements for `two_channel.sf`: kernel launches, peak GPU memory, end-to-end
+      time, fused against `--no-fuse`, logged in `docs/PROFILING_LOG.md`. Done 2026-10-28 with
+      `compiler/tools/measure.py`, at 2^14 and 2^18 samples per channel, plus
+      `filter_bank.sf`: 5 → 4 launches (confirmed by Nsight Systems) with no measurable time
+      change and 11.1 % more allocated memory on `two_channel`; 3 → 1 launches and a 2.9×
+      faster kernel phase on `filter_bank`.
+- [x] **[J+A]** `compiler/README.md` results table and stage status column. Done 2026-10-28.
 
 ## Stage 3: Extensions
 

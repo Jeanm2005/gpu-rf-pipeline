@@ -359,6 +359,59 @@ changes what is actually allocated. Measured by an agent on 2026-10-28 with
   `cufftGetSize` reported a 0-byte work area for this plan.
 - Screenshot: none.
 
+## SigFlow kernel fusion — `two_channel.sf` and `filter_bank.sf` — fused against `--no-fuse`
+
+The phase C fusion pass batches FIRs that share their taps into one launch
+(`fir_naive_batched_kernel` in `src/fused.cu`). Measured by an agent on 2026-10-28 with
+`compiler/tools/measure.py` (`--variant= --variant=--no-fuse --rounds 5 --nsys`); buffer reuse
+is on in both variants.
+
+- GPU / driver / CUDA version: NVIDIA GeForce RTX 5080 Laptop GPU (compute capability 12.0) /
+  617.42 / 13.4
+- Input size and parameters: `two_channel.sf` on the fixtures (2^14 samples per channel) and on
+  `bench_ch0` / `bench_ch1` (2^18); `filter_bank.sf` (63-tap low-pass over `tone_odd`, `short`,
+  and `zeros`) on the fixtures. Naive kernels throughout. `--bench 20`, 3 warm-up runs, five
+  interleaved rounds; times are the median of the round means, with their range. "End-to-end" is
+  host-to-device + kernel + device-to-host for one pipeline run, from CUDA events; setup
+  (reading files, allocation, cuFFT plans) is excluded.
+
+| Program, input | Launches (unfused → fused) | Kernel time (unfused → fused) | End-to-end (unfused → fused) | Allocated GPU memory (unfused → fused) |
+|---|---|---|---|---|
+| `two_channel`, 2^14 | 5 → 4 | 0.851 ms (0.843 to 0.860) → 0.854 ms (0.789 to 0.953) | 1.243 → 1.205 ms | 590,068 → 655,604 bytes (+11.1 %) |
+| `two_channel`, 2^18 | 5 → 4 | 216.0 ms (207.9 to 219.2) → 214.4 ms (207.2 to 216.7) | 218.7 → 217.3 ms | 9,437,428 → 10,486,004 bytes (+11.1 %) |
+| `filter_bank`, fixtures | 3 → 1 | 0.054 ms (0.033 to 0.066) → 0.018 ms (0.018 to 0.028) | 0.612 → 0.767 ms | 225,900 → 226,012 bytes |
+
+- Launches: counted by the program and confirmed by Nsight Systems, which recorded exactly as
+  many GPU kernels per pipeline run (cuFFT ran one kernel for its plan).
+- Transfer time: fusion does not change what is copied. `two_channel` 2^14: host-to-device
+  0.167 / 0.167 ms, device-to-host 0.221 / 0.193 ms (unfused / fused); 2^18: 0.808 / 0.833 ms
+  and 1.911 / 1.982 ms; `filter_bank`: 0.299 / 0.409 ms and 0.250 / 0.334 ms. The
+  sub-millisecond copies vary by tens of percent between rounds.
+- Driver-reported GPU memory (`cudaMemGetInfo` change across setup): `two_channel` 12 MiB either
+  way at 2^14, 20 MiB unfused against 22 MiB fused at 2^18; `filter_bank` 2 MiB either way.
+- Achieved memory bandwidth (% of peak) and occupancy: not measured (`ncu` still fails with
+  `ERR_NVGPUCTRPERM`; see the toolchain notes in `docs/ROADMAP.md`).
+- Top bottleneck reported by the profiler: not measured. In `two_channel` the naive
+  cross-correlation dominates the kernel time (150.6 ms of it at 2^18 on its own).
+- What I changed and why: fusing FIRs with the same taps saves a launch per extra channel, which
+  matters when kernels are short enough for launch overhead to show.
+- Result:
+  - `filter_bank`: three short FIR launches become one, and the kernel phase is 2.9× faster
+    (0.054 to 0.018 ms median), with non-overlapping ranges. The kernels take microseconds, so
+    the gaps between launches are most of the total. End-to-end time is not better (0.612 to
+    0.767 ms): it is dominated by the transfers, which fusion does not touch and which vary by
+    more than the whole kernel phase between rounds.
+  - `two_channel`: one launch fewer (5 to 4), but no measurable change in kernel or end-to-end
+    time at either size: the ranges overlap, and the two FIRs are a small part of a pipeline
+    whose time is the cross-correlation's.
+  - Memory cost: fusion costs `two_channel` 11.1 % more allocated GPU memory, because the
+    second FIR can no longer reuse the first capture's buffer while the first FIR still reads
+    it in the same launch (655,352 against 589,816 bytes of slots, as planned). At 2^18 that
+    shows up as 2 MiB more driver-reported memory.
+  - Negative result, kept on purpose: for this program, fusion buys a launch and costs memory.
+    It pays off when many short kernels share their taps, as in `filter_bank`.
+- Screenshot: none.
+
 ## Entry template
 
 ```markdown

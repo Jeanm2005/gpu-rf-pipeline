@@ -38,8 +38,8 @@ code generation.
 | Script backend | Emits an `rfgpu` command script | A | ✅ |
 | Liveness analysis | Finds when each buffer is last used, so GPU memory can be reused | B | ✅ |
 | DAG viewer | TypeScript page drawing the IR before and after each pass | B | ✅ |
-| Kernel fusion | Merges compatible adjacent stages into one kernel | C | ⬜ |
-| CUDA backend | Emits CUDA C++ calling the existing and fused kernels | C | ⬜ |
+| Kernel fusion | Merges compatible adjacent stages into one kernel | C | ✅ |
+| CUDA backend | Emits CUDA C++ calling the existing and fused kernels | C | ✅ |
 
 ## The language
 
@@ -142,9 +142,21 @@ pytest -q tests/e2e
 
 > Filled in from real measurements only (phase C).
 
+Measured on an RTX 5080 Laptop GPU, CUDA 13.4, with `tools/measure.py` (five interleaved
+rounds of `--bench 20 --warmup 3`; medians). GPU memory is what the program allocates (slots,
+taps, cuFFT workspace); end-to-end time is upload + kernels + download for one pipeline run.
+Details, ranges, and the driver-reported memory are in `../docs/PROFILING_LOG.md`.
+
 | Program | Kernel launches (unfused → fused) | GPU memory peak (no reuse → reuse) | End-to-end time (unfused → fused) |
 |---|---|---|---|
-| `two_channel.sf` | — | — | — |
+| `two_channel.sf`, 2^14 samples per channel | 5 → 4 | 983,284 → 590,068 bytes unfused; 655,604 fused with reuse | 1.243 → 1.205 ms (within noise) |
+| `two_channel.sf`, 2^18 samples per channel | 5 → 4 | 15,728,884 → 9,437,428 bytes unfused; 10,486,004 fused with reuse | 218.7 → 217.3 ms (within noise) |
+| `filter_bank.sf`, fixtures | 3 → 1 | 225,900 bytes unfused, 226,012 fused (both with reuse) | 0.612 → 0.767 ms (transfer noise); kernel phase 0.054 → 0.018 ms |
+
+Reuse saves 40 % of `two_channel`'s memory. Fusion removes a launch there but no measurable
+time, since the naive cross-correlation dominates, and gives 11 % of the memory back, because
+two FIRs in one launch can't hand a buffer from one to the other. Where kernels are tiny and
+share their taps (`filter_bank.sf`), fusion makes the kernel phase 2.9× faster.
 
 ### Planned GPU memory (phase B)
 
