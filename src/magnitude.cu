@@ -7,6 +7,7 @@
 
 #include "check.hpp"
 #include "device_buffer.hpp"
+#include "device_ops.hpp"
 #include "ops.hpp"
 
 #include <vector>
@@ -23,6 +24,19 @@ __global__ void magnitude_kernel(const cf32* x, float* mag, int num_samples)
     mag[n] = sqrtf(sample.re * sample.re + sample.im * sample.im);
 }
 
+void magnitude_device(const cf32* x, float* mag, int num_samples)
+{
+    if (num_samples == 0) {
+        return;
+    }
+    // Launch configuration: one thread per sample in a 1-D grid, 256 threads per block (a
+    // multiple of the warp size, as in the other kernels).
+    const int block = 256;
+    const int grid = (num_samples + block - 1) / block;
+    magnitude_kernel<<<grid, block>>>(x, mag, num_samples);
+    CUDA_CHECK(cudaGetLastError());
+}
+
 std::vector<float> magnitude_cuda(const std::vector<cf32>& x, Bench& bench)
 {
     const int num_samples = static_cast<int>(x.size());
@@ -32,17 +46,9 @@ std::vector<float> magnitude_cuda(const std::vector<cf32>& x, Bench& bench)
     DeviceBuffer<cf32> d_x(x.size());
     DeviceBuffer<float> d_mag(mag.size());
 
-    // Launch configuration: one thread per sample in a 1-D grid, 256 threads per block (a
-    // multiple of the warp size, as in the other kernels).
-    const int block = 256;
-    const int grid = (num_samples + block - 1) / block;
-
     bench.run(
         [&] { d_x.upload(x.data(), x.size()); },
-        [&] {
-            magnitude_kernel<<<grid, block>>>(d_x.get(), d_mag.get(), num_samples);
-            CUDA_CHECK(cudaGetLastError());
-        },
+        [&] { magnitude_device(d_x.get(), d_mag.get(), num_samples); },
         [&] { d_mag.download(mag.data(), mag.size()); });
     return mag;
 }

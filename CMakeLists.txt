@@ -21,8 +21,10 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(CUDAToolkit REQUIRED)
 
-add_executable(rfgpu
-  src/main.cpp
+# Every operation, its kernels, file I/O, and the timing harness. Linked by rfgpu and by the
+# programs sigflowc generates with --emit=cuda (see compiler/README.md), which call the
+# device-pointer entry points in src/device_ops.hpp.
+add_library(rfgpu_ops STATIC
   src/io.cpp
   src/bench.cpp
   src/spectrum.cu
@@ -30,5 +32,10 @@ add_executable(rfgpu
   src/fir.cu
   src/xcorr.cu
 )
-target_link_libraries(rfgpu PRIVATE CUDA::cudart CUDA::cufft)
+target_include_directories(rfgpu_ops PUBLIC src)
+target_link_libraries(rfgpu_ops PUBLIC CUDA::cudart CUDA::cufft)
+target_compile_options(rfgpu_ops PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-Wall -Wextra -Wpedantic>)
+
+add_executable(rfgpu src/main.cpp)
+target_link_libraries(rfgpu PRIVATE rfgpu_ops)
 target_compile_options(rfgpu PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-Wall -Wextra -Wpedantic>)

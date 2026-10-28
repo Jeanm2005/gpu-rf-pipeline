@@ -8,6 +8,7 @@
 
 #include "check.hpp"
 #include "device_buffer.hpp"
+#include "device_ops.hpp"
 #include "fft_plan.hpp"
 #include "ops.hpp"
 
@@ -46,6 +47,22 @@ __global__ void xcorr_naive_kernel(const cf32* a, const cf32* b, cf32* r, int nu
     r[i].im = im;
 }
 
+void xcorr_naive_device(const cf32* a, const cf32* b, cf32* r, int num_a, int num_b)
+{
+    const int num_lags = num_a + num_b - 1;
+    if (num_lags <= 0) {
+        return;
+    }
+    // Launch configuration: one thread per lag in a 1-D grid. 256 threads per block is a
+    // neutral starting point (a multiple of the 32-thread warp, and several blocks fit on
+    // each streaming multiprocessor). It is a placeholder until the profiler's occupancy
+    // numbers say otherwise.
+    const int block = 256;
+    const int grid = (num_lags + block - 1) / block;
+    xcorr_naive_kernel<<<grid, block>>>(a, b, r, num_a, num_b);
+    CUDA_CHECK(cudaGetLastError());
+}
+
 static std::vector<cf32> xcorr_naive(const std::vector<cf32>& a, const std::vector<cf32>& b,
                                      Bench& bench)
 {
@@ -59,22 +76,12 @@ static std::vector<cf32> xcorr_naive(const std::vector<cf32>& a, const std::vect
     DeviceBuffer<cf32> d_b(b.size());
     DeviceBuffer<cf32> d_r(r.size());
 
-    // Launch configuration: one thread per lag in a 1-D grid. 256 threads per block is a
-    // neutral starting point (a multiple of the 32-thread warp, and several blocks fit on
-    // each streaming multiprocessor). It is a placeholder until the profiler's occupancy
-    // numbers say otherwise.
-    const int block = 256;
-    const int grid = (num_lags + block - 1) / block;
-
     bench.run(
         [&] {
             d_a.upload(a.data(), a.size());
             d_b.upload(b.data(), b.size());
         },
-        [&] {
-            xcorr_naive_kernel<<<grid, block>>>(d_a.get(), d_b.get(), d_r.get(), num_a, num_b);
-            CUDA_CHECK(cudaGetLastError());
-        },
+        [&] { xcorr_naive_device(d_a.get(), d_b.get(), d_r.get(), num_a, num_b); },
         [&] { d_r.download(r.data(), r.size()); });
     return r;
 }

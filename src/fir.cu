@@ -6,6 +6,7 @@
 
 #include "check.hpp"
 #include "device_buffer.hpp"
+#include "device_ops.hpp"
 #include "ops.hpp"
 
 #include <stdexcept>
@@ -40,6 +41,21 @@ __global__ void fir_naive_kernel(const cf32* x, const float* taps, cf32* y, int 
     y[n].im = im;
 }
 
+void fir_naive_device(const cf32* x, const float* taps, cf32* y, int num_samples, int num_taps)
+{
+    if (num_samples == 0) {
+        return;
+    }
+    // Launch configuration: one thread per output sample in a 1-D grid. 256 threads per block
+    // is a neutral starting point (a multiple of the 32-thread warp, and several blocks fit
+    // on each streaming multiprocessor). It is a placeholder until the profiler's occupancy
+    // numbers say otherwise.
+    const int block = 256;
+    const int grid = (num_samples + block - 1) / block;
+    fir_naive_kernel<<<grid, block>>>(x, taps, y, num_samples, num_taps);
+    CUDA_CHECK(cudaGetLastError());
+}
+
 static std::vector<cf32> fir_naive(const std::vector<cf32>& x, const std::vector<float>& taps,
                                    Bench& bench)
 {
@@ -52,23 +68,12 @@ static std::vector<cf32> fir_naive(const std::vector<cf32>& x, const std::vector
     DeviceBuffer<float> d_taps(taps.size());
     DeviceBuffer<cf32> d_y(y.size());
 
-    // Launch configuration: one thread per output sample in a 1-D grid. 256 threads per block
-    // is a neutral starting point (a multiple of the 32-thread warp, and several blocks fit
-    // on each streaming multiprocessor). It is a placeholder until the profiler's occupancy
-    // numbers say otherwise.
-    const int block = 256;
-    const int grid = (num_samples + block - 1) / block;
-
     bench.run(
         [&] {
             d_x.upload(x.data(), x.size());
             d_taps.upload(taps.data(), taps.size());
         },
-        [&] {
-            fir_naive_kernel<<<grid, block>>>(d_x.get(), d_taps.get(), d_y.get(), num_samples,
-                                              num_taps);
-            CUDA_CHECK(cudaGetLastError());
-        },
+        [&] { fir_naive_device(d_x.get(), d_taps.get(), d_y.get(), num_samples, num_taps); },
         [&] { d_y.download(y.data(), y.size()); });
     return y;
 }
