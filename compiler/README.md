@@ -117,6 +117,12 @@ cmake --build build -j
 ln -sfn ../tests/fixtures fixtures       # the examples read fixtures/*.cf32 (git-ignored link)
 RFGPU=../build/rfgpu bash out/run.sh     # writes out/spectrum.f32 and out/xcorr.cf32
 
+# Phase C backend: a CUDA program that keeps every value on the GPU
+./build/sigflowc examples/two_channel.sf --emit=cuda -o out/run.cu
+tools/build_cuda.sh out/run.cu out/run   # links ../build/librfgpu_ops.a
+out/run --bench 20 --warmup 3            # same outputs, plus a JSON report of launches,
+                                         # GPU memory, and phase times
+
 ctest --test-dir build --output-on-failure
 pytest -q tests/e2e
 ```

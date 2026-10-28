@@ -23,10 +23,11 @@ find_package(CUDAToolkit REQUIRED)
 
 # Every operation, its kernels, file I/O, and the timing harness. Linked by rfgpu and by the
 # programs sigflowc generates with --emit=cuda (see compiler/README.md), which call the
-# device-pointer entry points in src/device_ops.hpp.
+# device-pointer entry points in src/device_ops.hpp and src/pipeline_runtime.hpp.
 add_library(rfgpu_ops STATIC
   src/io.cpp
   src/bench.cpp
+  src/pipeline_runtime.cpp
   src/spectrum.cu
   src/magnitude.cu
   src/fir.cu

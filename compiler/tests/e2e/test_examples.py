@@ -1,13 +1,14 @@
 """End-to-end: compile every program in compiler/examples/, run it on the GPU, check the output.
 
-For each example, sigflowc writes the phase A script (-o run.sh) and the IR as JSON
-(--emit=json). The script runs in a temporary directory next to a `fixtures` link to
-tests/fixtures. The JSON is then evaluated node by node with tools/reference.py (float64), and
-every emitted file is compared to the reference value of the node it emits, with the tolerance
-stated below for that node's operation.
+For each example, sigflowc writes the IR as JSON (--emit=json) and one of the two backends: the
+phase A script of rfgpu commands, or the phase C CUDA program (--emit=cuda), which this test
+builds with compiler/tools/build_cuda.sh against the librfgpu_ops.a next to rfgpu. Either runs in
+a temporary directory next to a `fixtures` link to tests/fixtures. The JSON is then evaluated
+node by node with tools/reference.py (float64), and every emitted file is compared to the
+reference value of the node it emits, with the tolerance stated below for that node's operation.
 
 The module is skipped when sigflowc or rfgpu is not built, or rfgpu cannot reach a GPU. Set
-SIGFLOWC_BIN or RFGPU_BIN to test binaries somewhere else.
+SIGFLOWC_BIN or RFGPU_BIN to test binaries somewhere else; the CUDA backend needs nvcc too.
 """
 from __future__ import annotations
 
@@ -26,6 +27,7 @@ FIXTURES = ROOT / "tests" / "fixtures"
 SIGFLOWC = Path(os.environ.get("SIGFLOWC_BIN", COMPILER / "build" / "sigflowc"))
 RFGPU = Path(os.environ.get("RFGPU_BIN", ROOT / "build" / "rfgpu"))
 EXAMPLES = sorted((COMPILER / "examples").glob("*.sf"))
+BUILD_CUDA = COMPILER / "tools" / "build_cuda.sh"
 sys.path.insert(0, str(ROOT / "tools"))
 import reference  # noqa: E402
 
@@ -99,23 +101,34 @@ def evaluate(graph: dict, workdir: Path) -> dict[int, np.ndarray]:
     return values
 
 
-def compile_and_run(example: Path, workdir: Path, *flags: str) -> dict:
-    """Compiles `example` with `flags`, runs its script in `workdir`, and returns its IR as
-    JSON."""
+def compile_and_run(example: Path, workdir: Path, *flags: str, backend: str = "script") -> dict:
+    """Compiles `example` with `flags` for `backend` ("script": the phase A rfgpu script;
+    "cuda": the phase C program, built with tools/build_cuda.sh against RFGPU_BIN's build
+    directory), runs it in `workdir`, and returns its IR as JSON."""
     (workdir / "fixtures").symlink_to(FIXTURES, target_is_directory=True)
-    script = workdir / "run.sh"
-    run(SIGFLOWC, example, *flags, "-o", script)
     graph = json.loads(run(SIGFLOWC, example, "--emit=json"))
-    run("bash", script, cwd=workdir, env={**os.environ, "RFGPU": str(RFGPU)})
+    if backend == "script":
+        script = workdir / "run.sh"
+        run(SIGFLOWC, example, *flags, "-o", script)
+        run("bash", script, cwd=workdir, env={**os.environ, "RFGPU": str(RFGPU)})
+    else:
+        source = workdir / "run.cu"
+        run(SIGFLOWC, example, *flags, "--emit=cuda", "-o", source)
+        run(BUILD_CUDA, source, workdir / "run",
+            env={**os.environ, "RFGPU_BUILD": str(RFGPU.parent)})
+        run(workdir / "run", cwd=workdir)
     return graph
 
 
-# With reuse, a later value overwrites a dead value's buffer file, so a liveness bug that frees a
-# buffer too early shows up here as a wrong output; --no-reuse is the baseline.
+# Both backends, with and without buffer reuse. With reuse, a later value overwrites a dead
+# value's buffer (a work file in the script, a GPU buffer in the CUDA program), so a liveness bug
+# that frees a buffer too early shows up here as a wrong output; --no-reuse is the baseline.
 @pytest.mark.parametrize("flags", [(), ("--no-reuse",)], ids=["reuse", "no_reuse"])
+@pytest.mark.parametrize("backend", ["script", "cuda"])
 @pytest.mark.parametrize("example", EXAMPLES, ids=[e.stem for e in EXAMPLES])
-def test_example_matches_reference(tmp_path: Path, example: Path, flags: tuple[str, ...]) -> None:
-    graph = compile_and_run(example, tmp_path, *flags)
+def test_example_matches_reference(tmp_path: Path, example: Path, backend: str,
+                                   flags: tuple[str, ...]) -> None:
+    graph = compile_and_run(example, tmp_path, *flags, backend=backend)
     nodes = {node["id"]: node for node in graph["nodes"]}
     sources = {edge["to"]: edge["from"] for edge in graph["edges"]
                if nodes[edge["to"]]["op"] == "emit"}

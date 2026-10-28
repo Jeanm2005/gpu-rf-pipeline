@@ -1,5 +1,6 @@
 #include "sigflow/driver.hpp"
 
+#include "sigflow/backend_cuda.hpp"
 #include "sigflow/backend_script.hpp"
 #include "sigflow/diagnostics.hpp"
 #include "sigflow/ir.hpp"
@@ -75,6 +76,10 @@ bool parse_emit(const std::string& value, EmitMode& mode)
         mode = EmitMode::Script;
         return true;
     }
+    if (value == "cuda") {
+        mode = EmitMode::Cuda;
+        return true;
+    }
     return false;
 }
 
@@ -111,7 +116,7 @@ bool parse_options(const std::vector<std::string>& args, Options& options, std::
         } else if (arg.compare(0, 7, "--emit=") == 0) {
             if (!parse_emit(arg.substr(7), options.emit)) {
                 err << "sigflowc: error: unknown --emit mode '" << arg.substr(7)
-                    << "' (available: tokens, ast, check, ir, schedule, liveness, json, script)\n";
+                    << "' (available: tokens, ast, check, ir, schedule, liveness, json, script, cuda)\n";
                 return false;
             }
         } else if (arg == "--no-dce") {
@@ -225,6 +230,9 @@ int compile(const Options& options, std::ostream& out, std::ostream& err)
         break;
     case EmitMode::Script:
         emit_script(graph, order, liveness, options.display_path, out);
+        break;
+    case EmitMode::Cuda:
+        emit_cuda(graph, order, liveness, options.display_path, options.reuse, out);
         break;
     case EmitMode::Schedule:
         for (std::size_t step = 0; step < order.order.size(); ++step) {

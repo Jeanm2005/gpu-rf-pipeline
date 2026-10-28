@@ -1,0 +1,12 @@
+# args: --emit=cuda
+# The phase C backend on the README example: values stay on the GPU in liveness slots.
+a    = capture("fixtures/ch0.cf32", rate=2.4e6)
+b    = capture("fixtures/ch1.cf32", rate=2.4e6)
+la   = a |> fir(taps="fixtures/lowpass.f32")
+lb   = b |> fir(taps="fixtures/lowpass.f32")
+spec = la |> fft(n=1024) |> magnitude
+corr = xcorr(la, lb)
+
+emit spec -> "out/spectrum.f32"
+emit corr -> "out/xcorr.cf32"
+emit a    -> "out/a_copy.cf32"

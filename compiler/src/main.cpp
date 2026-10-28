@@ -1,7 +1,7 @@
 // sigflowc: the SigFlow compiler command line.
 //
 //   sigflowc PROGRAM.sf -o run.sh                  phase A backend: a script of rfgpu commands
-//   sigflowc PROGRAM.sf --emit=tokens|ast|check|ir|schedule|liveness|json|script
+//   sigflowc PROGRAM.sf --emit=tokens|ast|check|ir|schedule|liveness|json|script|cuda
 //   sigflowc --update-golden tests/golden
 //
 // See compiler/README.md for the language and compiler/AGENTS.md for every --emit mode planned.
@@ -25,6 +25,8 @@ void print_usage(std::ostream& out)
            "\n"
            "--emit modes:\n"
            "  script    bash script of rfgpu commands (the default)\n"
+           "  cuda      CUDA C++ program that keeps values on the GPU (build it with\n"
+           "            compiler/tools/build_cuda.sh)\n"
            "  tokens    lexer output, one token per line\n"
            "  ast       parser output, one node per line\n"
            "  check     run every check, print only diagnostics\n"

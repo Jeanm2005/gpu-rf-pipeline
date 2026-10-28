@@ -283,7 +283,14 @@ between kernel work and compiler work. Phase C needs the MVP profiling numbers a
 
 - [ ] **[J]** `src/fuse.cpp` with `--no-fuse`. **[A]** unit tests on hand-built graphs.
 - [ ] **[J+A]** CUDA backend: generated C++ that calls the existing kernels. The fused kernel
-      templates are Jean's.
+      templates are Jean's. Unfused backend done 2026-10-28: `--emit=cuda`
+      (`src/backend_cuda.cpp`) writes a program that uploads the captures once, keeps every
+      value in its liveness slot on the GPU, and downloads only emitted values; it calls the
+      device-pointer entry points in `../src/device_ops.hpp` and links `rfgpu_ops`
+      (`tools/build_cuda.sh`). `../src/pipeline_runtime.hpp` handles setup, timing through
+      `Bench`, and a JSON report of launches, allocated and driver-reported GPU memory, and
+      phase times. The GPU end-to-end tests run both backends, with and without reuse (16
+      tests). Fused kernels come with `src/fuse.cpp`.
 - [ ] **[J]** Measurements for `two_channel.sf`: kernel launches, peak GPU memory, end-to-end
       time, fused against `--no-fuse`, logged in `docs/PROFILING_LOG.md`.
 - [ ] **[J+A]** `compiler/README.md` results table and stage status column.

@@ -19,6 +19,7 @@ enum class EmitMode {
     Liveness,  // live ranges, buffer slots, and planned GPU memory
     Json,
     Script,  // the phase A backend: a bash script of rfgpu commands (the default)
+    Cuda,    // the phase C backend: a CUDA C++ program that keeps values on the GPU
 };
 
 struct Options {
