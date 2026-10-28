@@ -289,7 +289,7 @@ between kernel work and compiler work. Phase C needs the MVP profiling numbers a
       scheduler launches a group as one unit and liveness frees buffers per launch, so no group
       member overwrites a buffer another member reads. 8 unit tests, 3 goldens. Vertical fusion
       (FFT into magnitude) would need cuFFT store callbacks: noted under deferred ideas.
-- [ ] **[J+A]** CUDA backend: generated C++ that calls the existing kernels. The fused kernel
+- [x] **[J+A]** CUDA backend: generated C++ that calls the existing kernels. The fused kernel
       templates are Jean's. Unfused backend done 2026-10-28: `--emit=cuda`
       (`src/backend_cuda.cpp`) writes a program that uploads the captures once, keeps every
       value in its liveness slot on the GPU, and downloads only emitted values; it calls the
@@ -297,7 +297,11 @@ between kernel work and compiler work. Phase C needs the MVP profiling numbers a
       (`tools/build_cuda.sh`). `../src/pipeline_runtime.hpp` handles setup, timing through
       `Bench`, and a JSON report of launches, allocated and driver-reported GPU memory, and
       phase times. The GPU end-to-end tests run both backends, with and without reuse (16
-      tests). Fused kernels come with `src/fuse.cpp`.
+      tests). Fused launches done 2026-10-28: a fusion group of FIRs becomes one call to
+      `fir_naive_batched_device` (`../src/fused.cu`, one grid row per channel, same arithmetic
+      as the naive kernel). `examples/filter_bank.sf` fuses three FIRs over inputs of different
+      lengths; the GPU end-to-end tests run every example by default, with `--no-reuse`, and
+      with `--no-fuse` on both backends (29 tests, all passing).
 - [ ] **[J]** Measurements for `two_channel.sf`: kernel launches, peak GPU memory, end-to-end
       time, fused against `--no-fuse`, logged in `docs/PROFILING_LOG.md`.
 - [ ] **[J+A]** `compiler/README.md` results table and stage status column.

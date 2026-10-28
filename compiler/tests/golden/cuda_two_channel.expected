@@ -10,7 +10,7 @@
 
 int main(int argc, char** argv)
 try {
-    sigflow::Runtime rt("cuda_two_channel.sf", false, true, argc, argv);
+    sigflow::Runtime rt("cuda_two_channel.sf", true, true, argc, argv);
 
     // Captures, read once.
     const std::vector<cf32> h0 = rt.read_capture("fixtures/ch0.cf32");  // %0 = capture "fixtures/ch0.cf32" : stream<cf32> @2.4e6   # a
@@ -54,11 +54,15 @@ try {
         },
         [&] {
             // %2 = fir %0 taps="fixtures/lowpass.f32" : stream<cf32> @2.4e6 [fused 0]   # la
-            fir_naive_device(rt.slot<cf32>(0), t2, rt.slot<cf32>(2), static_cast<int>(n2), taps2);
-            rt.count("fir");
+            {  // fusion group 0: 2 FIRs, one launch
+                const cf32* x[] = {rt.slot<cf32>(0), rt.slot<cf32>(1)};
+                cf32* y[] = {rt.slot<cf32>(2), rt.slot<cf32>(3)};
+                const int n[] = {static_cast<int>(n2), static_cast<int>(n3)};
+                fir_naive_batched_device(x, y, n, 2, t2, taps2);
+                rt.count("fir_batched");
+            }
             // %3 = fir %1 taps="fixtures/lowpass.f32" : stream<cf32> @2.4e6 [fused 0]   # lb
-            fir_naive_device(rt.slot<cf32>(1), t3, rt.slot<cf32>(3), static_cast<int>(n3), taps3);
-            rt.count("fir");
+            // (in the fused launch above)
             // %4 = fft %2 n=1024 : frames<cf32, 1024> @2.4e6
             if (n4 > n2) {  // zero the last frame's padding
                 CUDA_CHECK(cudaMemsetAsync(rt.slot<cf32>(2) + n2, 0, (n4 - n2) * sizeof(cf32)));

@@ -31,6 +31,7 @@ add_library(rfgpu_ops STATIC
   src/spectrum.cu
   src/magnitude.cu
   src/fir.cu
+  src/fused.cu
   src/xcorr.cu
 )
 target_include_directories(rfgpu_ops PUBLIC src)

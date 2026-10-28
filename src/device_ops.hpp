@@ -13,6 +13,13 @@
 // fir.cu, the naive variant: y[n] = sum_k taps[k] * x[n - k] for n < num_samples.
 void fir_naive_device(const cf32* x, const float* taps, cf32* y, int num_samples, int num_taps);
 
+// fused.cu: the naive FIR on `count` channels that share one set of taps, in a single launch.
+// Channel c filters x[c] (num_samples[c] samples) into y[c]. At most kMaxFirBatch channels,
+// which matches the largest group sigflowc's fusion pass forms (kMaxFusedFirs).
+constexpr int kMaxFirBatch = 8;
+void fir_naive_batched_device(const cf32* const* x, cf32* const* y, const int* num_samples,
+                              int count, const float* taps, int num_taps);
+
 // magnitude.cu: mag[n] = |x[n]| for n < num_samples.
 void magnitude_device(const cf32* x, float* mag, int num_samples);
 

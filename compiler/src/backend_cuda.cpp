@@ -1,5 +1,6 @@
 #include "sigflow/backend_cuda.hpp"
 
+#include <set>
 #include <vector>
 
 namespace sigflow {
@@ -45,7 +46,8 @@ public:
              << "#include <cstdio>\n#include <exception>\n#include <vector>\n\n"
              << "int main(int argc, char** argv)\n"
              << "try {\n"
-             << "    sigflow::Runtime rt(" << literal(program_name) << ", false, "
+             << "    sigflow::Runtime rt(" << literal(program_name) << ", "
+             << (fused() ? "true" : "false") << ", "
              << (reuse ? "true" : "false") << ", argc, argv);\n";
         setup();
         compute();
@@ -57,6 +59,16 @@ public:
     }
 
 private:
+    bool fused() const
+    {
+        for (NodeId id : schedule_.order) {
+            if (node(id).group >= 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     const Node& node(NodeId id) const { return graph_.nodes[static_cast<std::size_t>(id)]; }
     static std::string n(NodeId id) { return "n" + std::to_string(id); }
     std::string slot(NodeId id) const
@@ -177,6 +189,10 @@ private:
             out_ << "            // " << format_node(v) << "\n";
             switch (v.op) {
             case Op::Fir:
+                if (v.group >= 0) {
+                    fused_fir(v);
+                    break;
+                }
                 out_ << "            fir_naive_device(" << slot(v.inputs[0]) << ", t" << id << ", "
                      << slot(id) << ", " << as_int(id) << ", taps" << id << ");\n"
                      << "            rt.count(\"fir\");\n";
@@ -222,6 +238,40 @@ private:
         out_ << "        });\n";
     }
 
+    // A fusion group's FIRs are consecutive in the schedule (see schedule()): the first one emits
+    // the batched launch for all of them, the rest only note where they went.
+    void fused_fir(const Node& v)
+    {
+        if (!launched_groups_.insert(v.group).second) {
+            out_ << "            // (in the fused launch above)\n";
+            return;
+        }
+        std::vector<NodeId> members;
+        for (NodeId id : schedule_.order) {
+            if (node(id).group == v.group) {
+                members.push_back(id);
+            }
+        }
+        std::string x;
+        std::string y;
+        std::string counts;
+        for (NodeId id : members) {
+            const std::string sep = x.empty() ? "" : ", ";
+            x += sep + slot(node(id).inputs[0]);
+            y += sep + slot(id);
+            counts += sep + as_int(id);
+        }
+        out_ << "            {  // fusion group " << v.group << ": " << members.size()
+             << " FIRs, one launch\n"
+             << "                const cf32* x[] = {" << x << "};\n"
+             << "                cf32* y[] = {" << y << "};\n"
+             << "                const int n[] = {" << counts << "};\n"
+             << "                fir_naive_batched_device(x, y, n, " << members.size() << ", t"
+             << v.id << ", taps" << v.id << ");\n"
+             << "                rt.count(\"fir_batched\");\n"
+             << "            }\n";
+    }
+
     void finish()
     {
         out_ << "\n";
@@ -243,6 +293,7 @@ private:
     std::ostream& out_;
     std::vector<NodeId> captures_;
     std::vector<NodeId> emits_;
+    std::set<int> launched_groups_;
 };
 
 }  // namespace
