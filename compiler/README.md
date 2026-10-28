@@ -164,6 +164,21 @@ the device; that measurement goes in the table above.
 In all three, the plan with reuse equals the bytes live at the busiest step, which no plan can go
 below, so first-fit assignment is already optimal for these programs.
 
+### Measured GPU memory (phase B, on the phase C CUDA backend)
+
+`two_channel.sf` compiled with `--emit=cuda`, with and without `--no-reuse`, measured with
+`tools/measure.py` (details in `../docs/PROFILING_LOG.md`). "Allocated" is what the program
+requests; "driver" is the change in used GPU memory that `cudaMemGetInfo` reports across setup,
+in the allocator's 2 MiB pages.
+
+| Input | Allocated (no reuse → reuse) | Driver (no reuse → reuse) |
+|---|---|---|
+| fixtures, 2^14 samples per channel | 983,284 → 590,068 bytes (−40.0 %) | 12.0 MiB → 12.0 MiB |
+| `gen_bench.py`, 2^18 | 15,728,884 → 9,437,428 bytes (−40.0 %) | 26.0 MiB → 20.0 MiB |
+
+The allocation matches the compile-time plan above exactly, and at 2^18 the driver sees the
+same 6 MiB saving. Kernel and transfer times are unchanged within the noise.
+
 ## Roadmap
 
 1. **Phase A:** front end, graph IR, topological scheduling, dead-node elimination, script backend.

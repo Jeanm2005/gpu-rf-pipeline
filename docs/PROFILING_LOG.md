@@ -316,6 +316,49 @@ by an agent on 2026-10-23.
   2.17×.
 - Screenshot: none.
 
+## SigFlow buffer reuse — `two_channel.sf` — CUDA backend, reuse against `--no-reuse`
+
+Measures the phase B memory plan on the GPU. The phase C CUDA backend (`sigflowc --emit=cuda`)
+keeps every value on the device in the buffer slot liveness analysis gave it, so reuse now
+changes what is actually allocated. Measured by an agent on 2026-10-28 with
+`compiler/tools/measure.py` (`--variant= --variant=--no-reuse --rounds 5 --nsys`).
+
+- GPU / driver / CUDA version: NVIDIA GeForce RTX 5080 Laptop GPU (compute capability 12.0) /
+  617.42 / 13.4
+- Input size and parameters: `compiler/examples/two_channel.sf` (FIR with 63 taps on both
+  channels, 1024-point FFT and magnitude of one, naive cross-correlation of the two). Two input
+  sizes: the fixtures (2^14 samples per channel) and the `tools/gen_bench.py` captures
+  `bench_ch0` / `bench_ch1` (2^18). rfgpu's default (naive) kernels. `--bench 20`, 3 warm-up
+  runs, five interleaved rounds; times are the median of the round means, with their range.
+- GPU memory. "Allocated" is what the program asked for (slots, taps, cuFFT workspace);
+  "driver" is the change in used memory from `cudaMemGetInfo` across setup, which rounds to the
+  allocator's 2 MiB granularity and includes the cuFFT plan:
+
+| Input | Slots (no reuse → reuse) | Allocated (no reuse → reuse) | Driver (no reuse → reuse) |
+|---|---|---|---|
+| fixtures, 2^14 | 7 → 4 | 983,284 → 590,068 bytes (−40.0 %) | 12,582,912 → 12,582,912 bytes (no change) |
+| bench, 2^18 | 7 → 4 | 15,728,884 → 9,437,428 bytes (−40.0 %) | 27,262,976 → 20,971,520 bytes (−6,291,456) |
+
+- Kernel time: fixtures 0.928 ms (0.898 to 1.011) without reuse, 0.932 ms (0.910 to 1.200)
+  with; bench 249.5 ms (241.6 to 254.9) without, 245.6 ms (230.9 to 256.6) with.
+  Transfer time: fixtures host-to-device 0.160 / 0.183 ms and device-to-host 0.216 / 0.242 ms;
+  bench 0.805 / 0.792 ms and 1.959 / 1.958 ms (without / with reuse).
+- Launches: 5 per pipeline run either way (2 FIR, 1 cuFFT call, 1 magnitude, 1 xcorr), and
+  Nsight Systems recorded 5 GPU kernels for one run, so cuFFT ran one kernel for this plan.
+- Achieved memory bandwidth (% of peak) and occupancy: not measured. Reuse changes where values
+  live, not what any kernel does.
+- Top bottleneck reported by the profiler: not measured; the naive cross-correlation is most of
+  the kernel time (150.6 ms at 2^18 in the re-measurement above).
+- What I changed and why: nothing in the kernels. The slot plan from `src/liveness.cpp` against
+  one buffer per value.
+- Result: allocated memory drops by 40.0 % at both sizes, exactly the compile-time plan
+  (589,816 against 983,032 bytes of slots at 2^14, plus 252 bytes of taps). At 2^18 the driver
+  sees the same saving, 6,291,456 bytes, which is the slot difference rounded to whole 2 MiB
+  pages. At 2^14 the whole program fits in the same 2 MiB pages either way, so the driver shows
+  no difference. Kernel and transfer times do not change beyond the round-to-round spread.
+  `cufftGetSize` reported a 0-byte work area for this plan.
+- Screenshot: none.
+
 ## Entry template
 
 ```markdown

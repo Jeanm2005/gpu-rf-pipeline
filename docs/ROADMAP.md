@@ -263,11 +263,13 @@ between kernel work and compiler work. Phase C needs the MVP profiling numbers a
       the capture files (`--input-dir`), and `--emit=liveness`. 9 unit tests, 3 goldens. The script backend writes
       intermediates to one work file per slot, and the GPU end-to-end tests run every example
       with and without reuse (10 tests, all passing).
-- [ ] **[J+A]** Measure peak GPU memory with and without reuse. Planned numbers recorded
+- [x] **[J+A]** Measure peak GPU memory with and without reuse. Planned numbers recorded
       2026-10-27 in `compiler/README.md` (two_channel: 983,032 → 589,816 bytes, 40% less;
-      first fit matches the live-bytes lower bound on every example). A real measurement needs
-      buffers that stay on the GPU across operations, which the phase A script (one `rfgpu`
-      process per operation) does not have: it moves to the phase C CUDA backend.
+      first fit matches the live-bytes lower bound on every example). Measured 2026-10-28 on
+      the phase C CUDA backend with `compiler/tools/measure.py`: allocated memory drops 40.0 %
+      at 2^14 and 2^18 samples per channel, exactly as planned, and at 2^18 the driver-reported
+      GPU memory drops by 6 MiB (26 → 20 MiB); times unchanged. Entry in
+      `docs/PROFILING_LOG.md`.
 - [x] **[A]** `viewer/` scaffolding (TypeScript build, JSON loading). Done 2026-10-27:
       `compiler/viewer/` with TypeScript 7 (`tsc` only, no bundler), a validating parser for
       `--emit=json`, file picker / drag and drop / `?src=` loading, a static dev server, and
