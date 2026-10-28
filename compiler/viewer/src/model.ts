@@ -20,6 +20,7 @@ export interface IrNode {
   step?: number; // schedule step, live nodes only
   liveRange?: [number, number]; // [def, last use], live value nodes only
   slot?: number;
+  group?: number; // kernel-fusion group: nodes that run as one launch
   bytes?: number; // only when sigflowc could size the captures (--input-dir)
 }
 
@@ -101,6 +102,7 @@ function parseNode(raw: unknown, index: number): IrNode {
     removedBy: optionalString(raw, "removed_by"),
     step: optionalInt(raw, "step"),
     slot: optionalInt(raw, "slot"),
+    group: optionalInt(raw, "group"),
     bytes: optionalInt(raw, "bytes"),
   };
   const range = raw.live_range;

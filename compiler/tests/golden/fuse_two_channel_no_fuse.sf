@@ -1,0 +1,12 @@
+# args: --emit=schedule --no-fuse
+# The same program with fusion off: every FIR is its own launch.
+a    = capture("fixtures/ch0.cf32", rate=1e6)
+b    = capture("fixtures/ch1.cf32", rate=1e6)
+la   = a |> fir(taps="fixtures/lowpass.f32")
+lb   = b |> fir(taps="fixtures/lowpass.f32")
+spec = la |> fft(n=1024) |> magnitude
+corr = xcorr(la, lb)
+lo   = a |> fir(taps="fixtures/lowpass_long.f32")
+emit spec -> "out/spectrum.f32"
+emit corr -> "out/xcorr.cf32"
+emit lo   -> "out/lo.cf32"

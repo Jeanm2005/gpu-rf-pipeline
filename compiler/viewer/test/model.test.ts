@@ -16,7 +16,7 @@ test("parses the compiler's JSON", () => {
   const result = parseGraph(golden("json_viewer.expected"));
   assert.ok(result.ok, result.ok ? "" : result.error);
   const { graph } = result;
-  assert.deepEqual(graph.passes, ["build", "dce"]);
+  assert.deepEqual(graph.passes, ["build", "dce", "fuse"]);
   assert.equal(graph.nodes.length, 7);
   assert.equal(graph.slots, 3);
   assert.deepEqual(graph.schedule, [0, 1, 2, 5, 6]);
@@ -38,6 +38,7 @@ test("each stage shows the nodes alive after that pass", () => {
   assert.ok(result.ok);
   assert.equal(liveAfter(result.graph, 0).size, 7); // build: everything
   assert.deepEqual([...liveAfter(result.graph, 1)].sort(), [0, 1, 2, 5, 6]); // after dce
+  assert.equal(liveAfter(result.graph, 2).size, 5); // fuse removes nothing
 });
 
 test("rejects input that is not sigflowc JSON, with a reason", () => {

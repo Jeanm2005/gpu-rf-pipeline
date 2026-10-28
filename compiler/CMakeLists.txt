@@ -18,6 +18,7 @@ add_library(sigflow_core STATIC
   src/dce.cpp
   src/diagnostics.cpp
   src/driver.cpp
+  src/fuse.cpp
   src/ir_builder.cpp
   src/json.cpp
   src/lexer.cpp

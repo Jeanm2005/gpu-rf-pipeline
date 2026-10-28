@@ -11,6 +11,7 @@ include(GoogleTest)
 add_executable(sigflowc_unit_tests
   unit/dce_test.cpp
   unit/diagnostics_test.cpp
+  unit/fuse_test.cpp
   unit/ir_builder_test.cpp
   unit/lexer_test.cpp
   unit/liveness_test.cpp

@@ -7,10 +7,10 @@ RFGPU="${RFGPU:-rfgpu}"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
-# %2 = fir %0 taps="fixtures/lowpass.f32" : stream<cf32> @2.4e6   # la
+# %2 = fir %0 taps="fixtures/lowpass.f32" : stream<cf32> @2.4e6 [fused 0]   # la
 "$RFGPU" fir --in 'fixtures/ch0.cf32' --taps 'fixtures/lowpass.f32' --out "$WORK/b2"
 
-# %3 = fir %1 taps="fixtures/lowpass.f32" : stream<cf32> @2.4e6   # lb
+# %3 = fir %1 taps="fixtures/lowpass.f32" : stream<cf32> @2.4e6 [fused 0]   # lb
 "$RFGPU" fir --in 'fixtures/ch1.cf32' --taps 'fixtures/lowpass.f32' --out "$WORK/b3"
 
 # %4 = fft %2 n=1024 : frames<cf32, 1024> @2.4e6

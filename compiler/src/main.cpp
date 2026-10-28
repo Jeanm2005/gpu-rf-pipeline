@@ -20,7 +20,7 @@ namespace {
 void print_usage(std::ostream& out)
 {
     out << "usage:\n"
-           "  sigflowc PROGRAM.sf [--emit=MODE] [-o FILE] [--no-dce] [--no-reuse]\n"
+           "  sigflowc PROGRAM.sf [--emit=MODE] [-o FILE] [--no-dce] [--no-fuse] [--no-reuse]\n"
            "  sigflowc --update-golden DIR    regenerate DIR/*.expected from DIR/*.sf\n"
            "\n"
            "--emit modes:\n"
@@ -40,6 +40,7 @@ void print_usage(std::ostream& out)
            "\n"
            "passes:\n"
            "  --no-dce    keep nodes that no emit depends on\n"
+           "  --no-fuse   launch each FIR on its own instead of batching same-taps FIRs\n"
            "  --no-reuse  give every value its own buffer instead of reusing dead ones\n"
            "\n"
            "--input-dir=DIR   resolve capture paths against DIR when sizing buffers for\n"

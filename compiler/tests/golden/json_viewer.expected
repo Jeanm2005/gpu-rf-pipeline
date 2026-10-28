@@ -1,5 +1,5 @@
 {
-  "passes": ["build", "dce"],
+  "passes": ["build", "dce", "fuse"],
   "nodes": [
     {"id": 0, "op": "capture", "type": "stream<cf32>", "rate": "1e6", "name": "a", "path": "fixtures/ch0.cf32", "line": 3, "column": 9, "live": true, "step": 0, "live_range": [0, 2], "slot": 0, "bytes": 131072},
     {"id": 1, "op": "capture", "type": "stream<cf32>", "rate": "1e6", "name": "b", "path": "fixtures/ch1.cf32", "line": 4, "column": 9, "live": true, "step": 1, "live_range": [1, 3], "slot": 1, "bytes": 131072},

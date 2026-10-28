@@ -35,7 +35,7 @@ std::string quoted(const std::string& text) { return "\"" + json_escape(text) + 
 
 }  // namespace
 
-void print_json(const Graph& graph, bool dce_ran, const Schedule& schedule,
+void print_json(const Graph& graph, bool dce_ran, bool fuse_ran, const Schedule& schedule,
                 const Liveness& liveness, const std::vector<long long>& bytes, std::ostream& out)
 {
     std::vector<int> step_of(graph.nodes.size(), -1);
@@ -47,7 +47,8 @@ void print_json(const Graph& graph, bool dce_ran, const Schedule& schedule,
         range_of[static_cast<std::size_t>(range.node)] = &range;
     }
 
-    out << "{\n  \"passes\": [\"build\"" << (dce_ran ? ", \"dce\"" : "") << "],\n";
+    out << "{\n  \"passes\": [\"build\"" << (dce_ran ? ", \"dce\"" : "")
+        << (fuse_ran ? ", \"fuse\"" : "") << "],\n";
 
     out << "  \"nodes\": [";
     for (const Node& node : graph.nodes) {
@@ -78,6 +79,9 @@ void print_json(const Graph& graph, bool dce_ran, const Schedule& schedule,
             continue;
         }
         out << ", \"live\": true, \"step\": " << step_of[i];
+        if (node.group >= 0) {
+            out << ", \"group\": " << node.group;
+        }
         if (const LiveRange* range = range_of[i]) {
             out << ", \"live_range\": [" << range->def << ", " << range->last_use
                 << "], \"slot\": " << range->slot;

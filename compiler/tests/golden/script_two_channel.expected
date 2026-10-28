@@ -7,25 +7,25 @@ RFGPU="${RFGPU:-rfgpu}"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
-# %2 = fir %0 taps="fixtures/lowpass.f32" : stream<cf32> @2.4e6   # la
+# %2 = fir %0 taps="fixtures/lowpass.f32" : stream<cf32> @2.4e6 [fused 0]   # la
 "$RFGPU" fir --in 'fixtures/ch0.cf32' --taps 'fixtures/lowpass.f32' --out "$WORK/b2"
 
-# %3 = fir %1 taps="fixtures/lowpass.f32" : stream<cf32> @2.4e6   # lb
-"$RFGPU" fir --in 'fixtures/ch1.cf32' --taps 'fixtures/lowpass.f32' --out "$WORK/b0"
+# %3 = fir %1 taps="fixtures/lowpass.f32" : stream<cf32> @2.4e6 [fused 0]   # lb
+"$RFGPU" fir --in 'fixtures/ch1.cf32' --taps 'fixtures/lowpass.f32' --out "$WORK/b3"
 
 # %4 = fft %2 n=1024 : frames<cf32, 1024> @2.4e6
-"$RFGPU" spectrum --in "$WORK/b2" --nfft 1024 --out "$WORK/b1"
+"$RFGPU" spectrum --in "$WORK/b2" --nfft 1024 --out "$WORK/b0"
 
 # %5 = magnitude %4 : frames<f32, 1024> @2.4e6   # spec
-"$RFGPU" magnitude --in "$WORK/b1" --out "$WORK/b3"
+"$RFGPU" magnitude --in "$WORK/b0" --out "$WORK/b1"
 
 # %6 = xcorr %2 %3 : stream<cf32> @2.4e6   # corr
-"$RFGPU" xcorr --a "$WORK/b2" --b "$WORK/b0" --out "$WORK/b1"
+"$RFGPU" xcorr --a "$WORK/b2" --b "$WORK/b3" --out "$WORK/b0"
 
 # emit %5 -> "out/spectrum.f32"
 mkdir -p 'out'
-cp "$WORK/b3" 'out/spectrum.f32'
+cp "$WORK/b1" 'out/spectrum.f32'
 
 # emit %6 -> "out/xcorr.cf32"
 mkdir -p 'out'
-cp "$WORK/b1" 'out/xcorr.cf32'
+cp "$WORK/b0" 'out/xcorr.cf32'

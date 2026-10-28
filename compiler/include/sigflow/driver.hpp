@@ -28,6 +28,7 @@ struct Options {
     EmitMode emit = EmitMode::Script;
     std::string output_path;   // -o: write the output here instead of stdout (src/main.cpp)
     bool dce = true;    // dead-node elimination; --no-dce turns it off
+    bool fuse = true;   // kernel fusion; --no-fuse turns it off
     bool reuse = true;  // buffer reuse after liveness analysis; --no-reuse turns it off
     // --input-dir=DIR: where capture paths resolve when sizing buffers for --emit=liveness.
     std::string input_dir = ".";

@@ -36,6 +36,9 @@ struct Node {
     std::string path;   // Capture: file read. Emit: file written.
     std::string taps;   // Fir: taps file
     int n = 0;          // Fft: frame size
+    // Kernel-fusion group (src/fuse.cpp), or -1. Nodes in one group run as a single kernel
+    // launch, so they are scheduled together and count as one step for buffer reuse.
+    int group = -1;
     // Where the operation was written. The scheduler breaks ties by this (source order).
     SourceRange range;
 };

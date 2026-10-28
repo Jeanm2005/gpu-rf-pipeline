@@ -22,12 +22,18 @@ Liveness analyze_liveness(const Graph& graph, const Schedule& schedule, bool reu
             last = std::max(last, step_of[static_cast<std::size_t>(id)]);
         }
     }
+    // Buffers are freed by launch, not by step: the nodes of a fusion group run in one kernel,
+    // so none of them may write a buffer that another member of the group still reads.
+    const auto launch_at = [&schedule](int step) {
+        return schedule.launch.empty() ? step : schedule.launch[static_cast<std::size_t>(step)];
+    };
 
     Liveness result;
     result.slot_of.assign(count, -1);
 
-    // Linear scan over the schedule. `expiring` holds (last use, slot) of values in a slot; a
-    // value whose last use is before the current step has released its slot.
+    // Linear scan over the schedule. `expiring` holds (launch of last use, slot) of values in a
+    // slot; a value whose last use is in an earlier launch than the current one has released
+    // its slot.
     std::set<int> free_slots;
     std::set<std::pair<int, int>> expiring;
     for (NodeId id : schedule.order) {
@@ -36,7 +42,7 @@ Liveness analyze_liveness(const Graph& graph, const Schedule& schedule, bool reu
             continue;
         }
         const int step = step_of[static_cast<std::size_t>(id)];
-        while (!expiring.empty() && expiring.begin()->first < step) {
+        while (!expiring.empty() && expiring.begin()->first < launch_at(step)) {
             free_slots.insert(expiring.begin()->second);
             expiring.erase(expiring.begin());
         }
@@ -49,7 +55,7 @@ Liveness analyze_liveness(const Graph& graph, const Schedule& schedule, bool reu
             ++result.slot_count;
         }
         const int last = last_use[static_cast<std::size_t>(id)];
-        expiring.insert({last, slot});
+        expiring.insert({launch_at(last), slot});
         result.slot_of[static_cast<std::size_t>(id)] = slot;
         result.ranges.push_back(LiveRange{id, step, last, slot});
     }

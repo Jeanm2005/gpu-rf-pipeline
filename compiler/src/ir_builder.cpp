@@ -190,6 +190,9 @@ std::string format_node(const Node& node)
         out << " n=" << node.n;
     }
     out << " : " << type_name(node.type) << " @" << node.type.rate_text;
+    if (node.group >= 0) {
+        out << " [fused " << node.group << "]";
+    }
     if (!node.name.empty()) {
         out << "   # " << node.name;
     }

@@ -283,7 +283,12 @@ between kernel work and compiler work. Phase C needs the MVP profiling numbers a
 
 ### C-C. Phase C: fusion and CUDA backend
 
-- [ ] **[J]** `src/fuse.cpp` with `--no-fuse`. **[A]** unit tests on hand-built graphs.
+- [x] **[J]** `src/fuse.cpp` with `--no-fuse`. **[A]** unit tests on hand-built graphs.
+      Done 2026-10-28: horizontal fusion of FIRs with the same taps that don't depend on each
+      other (at most 8 per group, no cycle among launches), recorded as `Node::group`; the
+      scheduler launches a group as one unit and liveness frees buffers per launch, so no group
+      member overwrites a buffer another member reads. 8 unit tests, 3 goldens. Vertical fusion
+      (FFT into magnitude) would need cuFFT store callbacks: noted under deferred ideas.
 - [ ] **[J+A]** CUDA backend: generated C++ that calls the existing kernels. The fused kernel
       templates are Jean's. Unfused backend done 2026-10-28: `--emit=cuda`
       (`src/backend_cuda.cpp`) writes a program that uploads the captures once, keeps every
@@ -313,6 +318,10 @@ Out of scope until stages 1 and 2 are finished and measured. Order can change.
 6. **Parser fuzzer.** libFuzzer target for the SigFlow lexer and parser.
 
 ## Deferred ideas
+
+- Vertical fusion of `fft |> magnitude`: compute the magnitude in a cuFFT store callback, so
+  the complex spectrum never reaches GPU memory. Needs cuFFT's LTO callbacks (or the legacy
+  callbacks with static cuFFT and relocatable device code), so it is out of phase C's scope.
 
 - Fractional-sample delays in the two-channel fixture (the MVP fixture uses an integer delay).
 - A `--max-lag` option for cross-correlation, so a real-time user does not compute every lag.

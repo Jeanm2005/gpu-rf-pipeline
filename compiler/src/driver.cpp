@@ -116,11 +116,14 @@ bool parse_options(const std::vector<std::string>& args, Options& options, std::
         } else if (arg.compare(0, 7, "--emit=") == 0) {
             if (!parse_emit(arg.substr(7), options.emit)) {
                 err << "sigflowc: error: unknown --emit mode '" << arg.substr(7)
-                    << "' (available: tokens, ast, check, ir, schedule, liveness, json, script, cuda)\n";
+                    << "' (available: tokens, ast, check, ir, schedule, liveness, json, "
+                       "script, cuda)\n";
                 return false;
             }
         } else if (arg == "--no-dce") {
             options.dce = false;
+        } else if (arg == "--no-fuse") {
+            options.fuse = false;
         } else if (arg == "--no-reuse") {
             options.reuse = false;
         } else if (arg.compare(0, 12, "--input-dir=") == 0) {
@@ -202,6 +205,9 @@ int compile(const Options& options, std::ostream& out, std::ostream& err)
     if (options.dce) {
         graph = eliminate_dead_nodes(std::move(graph));
     }
+    if (options.fuse) {
+        graph = fuse_kernels(std::move(graph));
+    }
     const Schedule order = schedule(graph);
     if (!order.unscheduled.empty()) {
         // Sema rejects cyclic programs, so this is a compiler bug rather than a user error;
@@ -225,7 +231,7 @@ int compile(const Options& options, std::ostream& out, std::ostream& err)
                        out);
         break;
     case EmitMode::Json:
-        print_json(graph, options.dce, order, liveness,
+        print_json(graph, options.dce, options.fuse, order, liveness,
                    value_bytes(graph, options.input_dir), out);
         break;
     case EmitMode::Script:

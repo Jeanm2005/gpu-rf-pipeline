@@ -76,6 +76,9 @@ export function describe(node: IrNode): string {
   if (node.step !== undefined) {
     lines.push(`schedule step ${node.step}`);
   }
+  if (node.group !== undefined) {
+    lines.push(`fused: runs in one launch with the rest of group ${node.group}`);
+  }
   if (node.liveRange && node.slot !== undefined) {
     lines.push(`live steps ${node.liveRange[0]}..${node.liveRange[1]}, buffer b${node.slot}`);
   }
@@ -147,6 +150,9 @@ export function renderGraph(target: SVGSVGElement, graph: IrGraph, layout: Layou
     if (view.selected === node.id) {
       classes.push("selected");
     }
+    if (node.group !== undefined) {
+      classes.push("fused");
+    }
     const group = svg("g", {
       class: classes.join(" "),
       transform: `translate(${box.x} ${box.y})`,
@@ -164,7 +170,8 @@ export function renderGraph(target: SVGSVGElement, graph: IrGraph, layout: Layou
       }));
     }
     group.append(svg("text", { x: 14, y: 19, class: "title" },
-      `%${node.id} ${node.op}${node.name ? `  ${node.name}` : ""}`));
+      `%${node.id} ${node.op}${node.name ? `  ${node.name}` : ""}` +
+        (node.group !== undefined ? `  [g${node.group}]` : "")));
     group.append(svg("text", { x: 14, y: 35, class: "detail" }, detail(node)));
     // Schedule and buffers describe the final graph, so a node a later pass removes has none
     // even in the stages where it is still shown as alive.

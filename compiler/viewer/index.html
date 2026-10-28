@@ -76,6 +76,7 @@
     .node { cursor: pointer; }
     .node .box { fill: var(--bg); stroke: var(--border); stroke-width: 1; }
     .node.op-emit .box { stroke-dasharray: 4 3; }
+    .node.fused .box { stroke: var(--accent); stroke-dasharray: 6 2; }
     .node:hover .box, .node:focus .box { stroke: var(--accent); }
     .node:focus { outline: none; }
     .node.selected .box { stroke: var(--accent); stroke-width: 2; }

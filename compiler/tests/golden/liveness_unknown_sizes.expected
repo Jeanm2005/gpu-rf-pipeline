@@ -1,9 +1,9 @@
 %0 capture: live 0..2, slot 0, ? bytes   # a
 %1 capture: live 1..3, slot 1, ? bytes   # b
 %2 fir: live 2..6, slot 2, ? bytes   # la
-%3 fir: live 3..6, slot 0, ? bytes   # lb
-%4 fft: live 4..5, slot 1, ? bytes
-%5 magnitude: live 5..7, slot 3, ? bytes   # spec
-%6 xcorr: live 6..8, slot 1, ? bytes   # corr
+%3 fir: live 3..6, slot 3, ? bytes   # lb
+%4 fft: live 4..5, slot 0, ? bytes
+%5 magnitude: live 5..7, slot 1, ? bytes   # spec
+%6 xcorr: live 6..8, slot 0, ? bytes   # corr
 4 slots for 7 values
 planned GPU memory: unknown (a capture file is missing under '.'; see --input-dir)

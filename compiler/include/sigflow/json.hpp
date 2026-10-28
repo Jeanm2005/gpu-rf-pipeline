@@ -3,7 +3,7 @@
 // --emit=json: the IR and everything the passes found about it, for the DAG viewer (viewer/).
 //
 //   {
-//     "passes":   ["build", "dce"],              the passes that ran, in order
+//     "passes":   ["build", "dce", "fuse"],      the passes that ran, in order
 //     "nodes":    [{"id", "op", "line", "column", "live", ...}],
 //     "edges":    [{"from", "to", "input"}],
 //     "schedule": [ids in launch order],
@@ -24,9 +24,10 @@
 
 namespace sigflow {
 
-// `graph` is the IR after the passes (only dead-node elimination so far, which ran when
-// `dce_ran`); it still holds every node the builder made, with removed ones not live.
-void print_json(const Graph& graph, bool dce_ran, const Schedule& schedule,
+// `graph` is the IR after the passes: dead-node elimination when `dce_ran`, then kernel fusion
+// when `fuse_ran`, which removes no nodes but sets each fused node's "group". It still holds
+// every node the builder made, with removed ones not live.
+void print_json(const Graph& graph, bool dce_ran, bool fuse_ran, const Schedule& schedule,
                 const Liveness& liveness, const std::vector<long long>& bytes, std::ostream& out);
 
 }  // namespace sigflow
