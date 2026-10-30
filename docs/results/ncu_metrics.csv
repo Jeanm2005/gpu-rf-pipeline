@@ -1,0 +1,16 @@
+report,kernel,duration_ms,memory_pct,compute_pct,occupancy_pct
+fir_naive_1025,fir_naive_kernel,61.45856,93.806388,93.806388,97.300051
+fir_naive_63,fir_naive_kernel,3.502656,98.826615,98.826615,89.764532
+fir_tiled_1025,fir_tiled_kernel,39.037664,98.805507,98.805507,99.419805
+fir_tiled_63,fir_tiled_kernel,2.582656,98.28986,98.28986,95.631055
+fir_tiled_const_1025,fir_tiled_const_kernel,19.717376,99.027523,98.898014,99.078724
+fir_tiled_const_63,fir_tiled_const_kernel,1.445056,95.483065,94.511229,94.639403
+xcorr_fft,"void regular_fft_factor<512, EPT<8>, 8, 0, 14, 0, 2, 1, unsigned int, float, HostConfigPlaceholder>",0.034944,26.672938,18.264765,64.024707
+xcorr_fft,"void regular_fft_factor<1024, EPT<16>, 4, 0, 14, 0, 2, 1, unsigned int, float, HostConfigPlaceholder>",0.03472,28.189437,13.887551,32.95904
+xcorr_fft,"void regular_fft_factor<512, EPT<8>, 8, 0, 14, 0, 2, 1, unsigned int, float, HostConfigPlaceholder>",0.036064,25.808983,18.264963,63.665169
+xcorr_fft,"void regular_fft_factor<1024, EPT<16>, 4, 0, 14, 0, 2, 1, unsigned int, float, HostConfigPlaceholder>",0.038560000000000004,29.27651,14.413503,33.730387
+xcorr_fft,xcorr_conj_mul_kernel,0.032512,57.006713,14.259179,72.502491
+xcorr_fft,"void regular_fft_factor<512, EPT<8>, 8, 0, 14, 0, 2, 1, unsigned int, float, HostConfigPlaceholder>",0.039872,23.364114,19.535856,63.851821
+xcorr_fft,"void regular_fft_factor<1024, EPT<16>, 4, 0, 14, 0, 2, 1, unsigned int, float, HostConfigPlaceholder>",0.036992,30.905887,15.218222,33.469597
+xcorr_naive,xcorr_naive_kernel,317.405792,95.875699,95.875699,98.191013
+xcorr_tiled,xcorr_tiled_kernel,127.570592,92.602508,92.415134,98.926324
