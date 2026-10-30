@@ -155,6 +155,22 @@ __global__ void xcorr_tiled_kernel(const cf32* a, const cf32* b, cf32* r, int nu
     }
 }
 
+void xcorr_tiled_device(const cf32* a, const cf32* b, cf32* r, int num_a, int num_b)
+{
+    const int num_lags = num_a + num_b - 1;
+    if (num_lags <= 0) {
+        return;
+    }
+    // Launch configuration: one thread per lag, 256 threads per block as in the naive variant
+    // so the two differ only in where the samples are read from. The block size is also the
+    // chunk length, so the tile is 256 samples of a plus 511 of b: about 6 KB per block.
+    const int block = 256;
+    const int grid = (num_lags + block - 1) / block;
+    const std::size_t tile_bytes = (3 * static_cast<std::size_t>(block) - 1) * sizeof(cf32);
+    xcorr_tiled_kernel<<<grid, block, tile_bytes>>>(a, b, r, num_a, num_b);
+    CUDA_CHECK(cudaGetLastError());
+}
+
 static std::vector<cf32> xcorr_tiled(const std::vector<cf32>& a, const std::vector<cf32>& b,
                                      Bench& bench)
 {
@@ -168,23 +184,12 @@ static std::vector<cf32> xcorr_tiled(const std::vector<cf32>& a, const std::vect
     DeviceBuffer<cf32> d_b(b.size());
     DeviceBuffer<cf32> d_r(r.size());
 
-    // Launch configuration: one thread per lag, 256 threads per block as in the naive variant
-    // so the two differ only in where the samples are read from. The block size is also the
-    // chunk length, so the tile is 256 samples of a plus 511 of b: about 6 KB per block.
-    const int block = 256;
-    const int grid = (num_lags + block - 1) / block;
-    const std::size_t tile_bytes = (3 * static_cast<std::size_t>(block) - 1) * sizeof(cf32);
-
     bench.run(
         [&] {
             d_a.upload(a.data(), a.size());
             d_b.upload(b.data(), b.size());
         },
-        [&] {
-            xcorr_tiled_kernel<<<grid, block, tile_bytes>>>(d_a.get(), d_b.get(), d_r.get(),
-                                                            num_a, num_b);
-            CUDA_CHECK(cudaGetLastError());
-        },
+        [&] { xcorr_tiled_device(d_a.get(), d_b.get(), d_r.get(), num_a, num_b); },
         [&] { d_r.download(r.data(), r.size()); });
     return r;
 }
@@ -267,6 +272,80 @@ static std::vector<cf32> xcorr_fft(const std::vector<cf32>& a, const std::vector
         },
         [&] { d_fb.download(r.data(), r.size()); });
     return r;
+}
+
+// --- fft, device-pointer entry point ------------------------------------------------------
+
+// The same algorithm as xcorr_fft, for inputs that are already on the GPU. The padded inputs
+// get their own buffers so the zero padding written at construction survives every run, and a
+// is stored rotated left by num_a - 1 exactly as in xcorr_fft.
+
+static std::size_t xcorr_fft_length(std::size_t num_lags)
+{
+    std::size_t fft_len = 1;
+    while (fft_len < num_lags) {
+        fft_len *= 2;
+    }
+    if (fft_len > (std::size_t{1} << 30)) {
+        throw std::runtime_error("xcorr fft: " + std::to_string(num_lags)
+                                 + " lags need an FFT longer than the supported 2^30 points");
+    }
+    return fft_len;
+}
+
+XcorrFft::XcorrFft(int num_a, int num_b)
+    : num_a_(num_a),
+      num_b_(num_b),
+      fft_len_(xcorr_fft_length(static_cast<std::size_t>(num_a) + num_b - 1)),
+      padded_a_(fft_len_),
+      padded_b_(fft_len_),
+      spectrum_a_(fft_len_),
+      spectrum_b_(fft_len_),
+      plan_(static_cast<int>(fft_len_), 1)
+{
+    if (num_a < 1 || num_b < 1) {
+        throw std::runtime_error("xcorr fft: both inputs need at least one sample");
+    }
+    padded_a_.zero();
+    padded_b_.zero();
+    CUFFT_CHECK(cufftGetSize(plan_.get(), &plan_bytes_));
+}
+
+std::size_t XcorrFft::bytes() const
+{
+    return padded_a_.bytes() + padded_b_.bytes() + spectrum_a_.bytes() + spectrum_b_.bytes()
+           + plan_bytes_;
+}
+
+void XcorrFft::run(const cf32* a, const cf32* b, cf32* r) const
+{
+    const std::size_t num_a = static_cast<std::size_t>(num_a_);
+    const std::size_t num_lags = num_a + static_cast<std::size_t>(num_b_) - 1;
+    const auto copy = [](cf32* dst, const cf32* src, std::size_t count) {
+        if (count > 0) {
+            CUDA_CHECK(cudaMemcpyAsync(dst, src, count * sizeof(cf32), cudaMemcpyDeviceToDevice));
+        }
+    };
+    copy(padded_a_.get(), a + (num_a - 1), 1);
+    copy(padded_a_.get() + (fft_len_ - (num_a - 1)), a, num_a - 1);
+    copy(padded_b_.get(), b, static_cast<std::size_t>(num_b_));
+
+    const auto fft = [this](const cf32* in, cf32* out, int direction) {
+        cufftComplex* src = reinterpret_cast<cufftComplex*>(const_cast<cf32*>(in));
+        CUFFT_CHECK(cufftExecC2C(plan_.get(), src, reinterpret_cast<cufftComplex*>(out),
+                                 direction));
+    };
+    fft(padded_a_.get(), spectrum_a_.get(), CUFFT_FORWARD);
+    fft(padded_b_.get(), spectrum_b_.get(), CUFFT_FORWARD);
+
+    // Launch configuration: one thread per frequency bin, 256 threads per block, as xcorr_fft.
+    const int n = static_cast<int>(fft_len_);
+    const int block = 256;
+    xcorr_conj_mul_kernel<<<(n + block - 1) / block, block>>>(
+        spectrum_a_.get(), spectrum_b_.get(), n, 1.0f / static_cast<float>(fft_len_));
+    CUDA_CHECK(cudaGetLastError());
+    fft(spectrum_b_.get(), spectrum_b_.get(), CUFFT_INVERSE);
+    copy(r, spectrum_b_.get(), num_lags);
 }
 
 // --- implementation table ------------------------------------------------------------------

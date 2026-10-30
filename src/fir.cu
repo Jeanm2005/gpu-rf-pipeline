@@ -7,6 +7,7 @@
 #include "check.hpp"
 #include "device_buffer.hpp"
 #include "device_ops.hpp"
+#include "fir_batch.hpp"
 #include "ops.hpp"
 
 #include <stdexcept>
@@ -144,15 +145,18 @@ static std::size_t fir_tile_bytes(int num_taps, int block, const char* impl)
 {
     const std::size_t tile_bytes =
         (static_cast<std::size_t>(num_taps) - 1 + static_cast<std::size_t>(block)) * sizeof(cf32);
+    // cudaDeviceGetAttribute rather than cudaGetDeviceProperties: it is cheap enough to call on
+    // every launch from the device-pointer entry points, inside timed regions.
     int device = 0;
     CUDA_CHECK(cudaGetDevice(&device));
-    cudaDeviceProp prop{};
-    CUDA_CHECK(cudaGetDeviceProperties(&prop, device));
-    if (tile_bytes > prop.sharedMemPerBlock) {
+    int shared_per_block = 0;
+    CUDA_CHECK(cudaDeviceGetAttribute(&shared_per_block, cudaDevAttrMaxSharedMemoryPerBlock,
+                                      device));
+    if (tile_bytes > static_cast<std::size_t>(shared_per_block)) {
         throw std::runtime_error(std::string("fir ") + impl + ": " + std::to_string(num_taps)
                                  + " taps need " + std::to_string(tile_bytes)
                                  + " bytes of shared memory per block, more than the "
-                                 + std::to_string(prop.sharedMemPerBlock)
+                                 + std::to_string(shared_per_block)
                                  + " available; use --impl naive");
     }
     return tile_bytes;
@@ -281,6 +285,171 @@ static std::vector<cf32> fir_tiled_const(const std::vector<cf32>& x,
         },
         [&] { d_y.download(y.data(), y.size()); });
     return y;
+}
+
+// --- device-pointer entry points -----------------------------------------------------------
+
+// Launch configuration for every tiled launch below: as in fir_tiled and fir_tiled_const, 256
+// threads per block, one output sample per thread, and a tile of the block's samples plus a
+// halo of num_taps - 1 in dynamic shared memory.
+constexpr int kTiledBlock = 256;
+
+static void load_const_taps(const float* taps, int num_taps)
+{
+    if (num_taps > kMaxConstTaps) {
+        throw std::runtime_error("fir tiled_const: " + std::to_string(num_taps)
+                                 + " taps, more than the " + std::to_string(kMaxConstTaps)
+                                 + " that fit in constant memory; use naive");
+    }
+    // Device-to-device into the constant bank, in stream order, so FIRs with different taps can
+    // follow each other in one pipeline.
+    CUDA_CHECK(cudaMemcpyToSymbolAsync(c_taps, taps, static_cast<std::size_t>(num_taps)
+                                                         * sizeof(float),
+                                       0, cudaMemcpyDeviceToDevice));
+}
+
+void fir_device(FirImpl impl, const cf32* x, const float* taps, cf32* y, int num_samples,
+                int num_taps)
+{
+    if (impl == FirImpl::Naive) {
+        fir_naive_device(x, taps, y, num_samples, num_taps);
+        return;
+    }
+    if (num_samples == 0) {
+        return;
+    }
+    const int grid = (num_samples + kTiledBlock - 1) / kTiledBlock;
+    if (impl == FirImpl::Tiled) {
+        const std::size_t tile_bytes = fir_tile_bytes(num_taps, kTiledBlock, "tiled");
+        fir_tiled_kernel<<<grid, kTiledBlock, tile_bytes>>>(x, taps, y, num_samples, num_taps);
+    } else {
+        const std::size_t tile_bytes = fir_tile_bytes(num_taps, kTiledBlock, "tiled_const");
+        load_const_taps(taps, num_taps);
+        fir_tiled_const_kernel<<<grid, kTiledBlock, tile_bytes>>>(x, y, num_samples, num_taps);
+    }
+    CUDA_CHECK(cudaGetLastError());
+}
+
+// fir_tiled_kernel over several channels that share one set of taps: blockIdx.y picks the
+// channel, and within it the block builds the same tile and computes the same outputs as the
+// single-channel kernel. A block entirely past its channel's end returns before the barrier,
+// which is safe because every thread of that block returns.
+__global__ void fir_tiled_batched_kernel(FirBatch batch, const float* taps, int num_taps)
+{
+    extern __shared__ cf32 tile[];
+
+    const int channel = blockIdx.y;
+    const int num_samples = batch.num_samples[channel];
+    const int block_start = blockIdx.x * blockDim.x;
+    if (block_start >= num_samples) {
+        return;
+    }
+    const cf32* x = batch.x[channel];
+    const int halo = num_taps - 1;
+    const int tile_len = halo + blockDim.x;
+    const int tile_start = block_start - halo;
+
+    for (int i = threadIdx.x; i < tile_len; i += blockDim.x) {
+        const int m = tile_start + i;
+        if (m >= 0 && m < num_samples) {
+            tile[i] = x[m];
+        } else {
+            tile[i].re = 0.0f;
+            tile[i].im = 0.0f;
+        }
+    }
+    __syncthreads();
+
+    const int n = block_start + threadIdx.x;
+    if (n >= num_samples) {
+        return;
+    }
+    const int newest = halo + threadIdx.x;
+    float re = 0.0f;
+    float im = 0.0f;
+    for (int k = 0; k < num_taps; ++k) {
+        const float tap = taps[k];
+        const cf32 sample = tile[newest - k];
+        re += tap * sample.re;
+        im += tap * sample.im;
+    }
+    batch.y[channel][n].re = re;
+    batch.y[channel][n].im = im;
+}
+
+// The same with the taps in constant memory, as fir_tiled_const_kernel.
+__global__ void fir_tiled_const_batched_kernel(FirBatch batch, int num_taps)
+{
+    extern __shared__ cf32 tile[];
+
+    const int channel = blockIdx.y;
+    const int num_samples = batch.num_samples[channel];
+    const int block_start = blockIdx.x * blockDim.x;
+    if (block_start >= num_samples) {
+        return;
+    }
+    const cf32* x = batch.x[channel];
+    const int halo = num_taps - 1;
+    const int tile_len = halo + blockDim.x;
+    const int tile_start = block_start - halo;
+
+    for (int i = threadIdx.x; i < tile_len; i += blockDim.x) {
+        const int m = tile_start + i;
+        if (m >= 0 && m < num_samples) {
+            tile[i] = x[m];
+        } else {
+            tile[i].re = 0.0f;
+            tile[i].im = 0.0f;
+        }
+    }
+    __syncthreads();
+
+    const int n = block_start + threadIdx.x;
+    if (n >= num_samples) {
+        return;
+    }
+    const int newest = halo + threadIdx.x;
+    float re = 0.0f;
+    float im = 0.0f;
+    for (int k = 0; k < num_taps; ++k) {
+        const float tap = c_taps[k];
+        const cf32 sample = tile[newest - k];
+        re += tap * sample.re;
+        im += tap * sample.im;
+    }
+    batch.y[channel][n].re = re;
+    batch.y[channel][n].im = im;
+}
+
+void fir_tiled_batched_device(const cf32* const* x, cf32* const* y, const int* num_samples,
+                              int count, const float* taps, int num_taps)
+{
+    FirBatch batch;
+    const int longest = make_fir_batch(x, y, num_samples, count, batch);
+    if (longest == 0) {
+        return;
+    }
+    // One grid row per channel along y; along x, the single-channel launch for the longest one.
+    const std::size_t tile_bytes = fir_tile_bytes(num_taps, kTiledBlock, "tiled");
+    const dim3 grid((longest + kTiledBlock - 1) / kTiledBlock, count);
+    fir_tiled_batched_kernel<<<grid, kTiledBlock, tile_bytes>>>(batch, taps, num_taps);
+    CUDA_CHECK(cudaGetLastError());
+}
+
+void fir_tiled_const_batched_device(const cf32* const* x, cf32* const* y,
+                                    const int* num_samples, int count, const float* taps,
+                                    int num_taps)
+{
+    FirBatch batch;
+    const int longest = make_fir_batch(x, y, num_samples, count, batch);
+    if (longest == 0) {
+        return;
+    }
+    const std::size_t tile_bytes = fir_tile_bytes(num_taps, kTiledBlock, "tiled_const");
+    load_const_taps(taps, num_taps);
+    const dim3 grid((longest + kTiledBlock - 1) / kTiledBlock, count);
+    fir_tiled_const_batched_kernel<<<grid, kTiledBlock, tile_bytes>>>(batch, num_taps);
+    CUDA_CHECK(cudaGetLastError());
 }
 
 // --- implementation table ------------------------------------------------------------------

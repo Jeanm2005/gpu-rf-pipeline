@@ -14,6 +14,7 @@
 //   PROGRAM [--bench N] [--warmup W]    default: a single run with no warm-up, as in rfgpu
 
 #include "bench.hpp"
+#include "device_ops.hpp"
 #include "device_buffer.hpp"
 #include "fft_plan.hpp"
 #include "types.hpp"
@@ -61,6 +62,10 @@ public:
     // A batched forward-FFT plan, owned by the runtime.
     cufftHandle fft_plan(int nfft, std::size_t num_frames);
 
+    // An FFT-based cross-correlation for these input lengths, owned by the runtime. Its work
+    // buffers and plan count toward the report's FFT work memory.
+    const XcorrFft& xcorr_fft(std::size_t num_a, std::size_t num_b);
+
     // --- run -------------------------------------------------------------------------------
 
     // Records that `compute` enqueues one kernel launch or library call of this kind. Only the
@@ -94,6 +99,7 @@ private:
     std::vector<std::unique_ptr<DeviceBuffer<unsigned char>>> slots_;
     std::map<std::string, std::unique_ptr<DeviceBuffer<float>>> taps_;
     std::vector<std::unique_ptr<FftPlan>> plans_;
+    std::vector<std::unique_ptr<XcorrFft>> xcorr_ffts_;
     std::size_t taps_bytes_ = 0;
     std::size_t fft_work_bytes_ = 0;
     std::map<std::string, int> counts_;  // launches per pipeline run
