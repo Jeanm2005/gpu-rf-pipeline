@@ -1,177 +1,166 @@
 # gpu-rf-pipeline
 
 [![CI](https://github.com/Jeanm2005/gpu-rf-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/Jeanm2005/gpu-rf-pipeline/actions/workflows/ci.yml)
+![CUDA 13.4](https://img.shields.io/badge/CUDA-13.4-76B900)
+![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C)
 
-GPU signal processing for recorded radio data, written in CUDA C++ with a Python test harness.
+GPU signal processing for recorded radio data: an FFT spectrum, FIR filtering, and
+cross-correlation in CUDA C++, verified against a NumPy/SciPy reference and optimized kernel by
+kernel with Nsight. It ships with **SigFlow**, a small dataflow language whose compiler schedules
+a pipeline, plans its GPU memory, fuses kernels, and generates a CUDA program for it.
 
-The pipeline takes complex IQ (in-phase/quadrature) captures, the raw output of a
-software-defined radio (SDR), and computes three core operations on an NVIDIA GPU:
+## Highlights
 
-| Operation | GPU implementation | Status |
-|---|---|---|
-| FFT (fast Fourier transform) magnitude spectrum | cuFFT (library baseline) | ✅ |
-| FIR (finite impulse response) filter | Custom CUDA kernel(s) | ✅ naive, tiled, tiled with constant-memory taps |
-| Cross-correlation | Custom CUDA kernel (time-domain) + cuFFT version for comparison | ✅ naive, tiled, cuFFT-based |
-
-Every GPU result is verified against a NumPy/SciPy CPU reference, and every optimization is
-timed with CUDA events, profiled with NVIDIA Nsight Compute, and written up in
-[`docs/PROFILING_LOG.md`](docs/PROFILING_LOG.md).
-
-## Why
-
-Radio direction-finding and signal-intelligence systems are moving from dedicated hardware to
-software-defined radios paired with embedded GPUs such as NVIDIA Jetson. The core workload
-(spectral computation, filtering, and correlation on streaming samples) is memory-bound and
-latency-sensitive, so it is a good place to learn how GPU memory hierarchy, coalescing, and
-occupancy actually affect performance. The long-term goal is direction finding: estimating where
-a signal comes from by correlating captures from multiple antennas.
-
-## Quick start
-
-```bash
-# Requirements: Linux or WSL2, NVIDIA GPU + driver, CUDA Toolkit, CMake >= 3.24,
-# C++17 compiler, Python >= 3.10
-pip install numpy scipy pytest
-
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build -j
-
-python tools/gen_fixtures.py --out tests/fixtures
-pytest -q tests/
-```
-
-If the default compiler is too new for your CUDA Toolkit's `nvcc` (for example GCC 15 with
-CUDA 12.8), pass an older host compiler to CMake with `-DCMAKE_CXX_COMPILER` and
-`-DCMAKE_CUDA_HOST_COMPILER`. With CUDA 13.4 and GCC 15 no extra flags are needed. The
-development machine's setup is in the "Toolchain notes" section of
-[`docs/ROADMAP.md`](docs/ROADMAP.md).
-
-Example:
-
-```bash
-./build/rfgpu xcorr --a tests/fixtures/ch0.cf32 --b tests/fixtures/ch1.cf32 \
-                    --out out/xcorr.cf32 --impl fft
-```
-
-`./build/rfgpu --help` lists every implementation variant. To reproduce the measurements:
-
-```bash
-python tools/gen_bench.py --out out/bench          # large inputs, not committed
-./build/rfgpu fir --in out/bench/bench_tone.cf32 --taps tests/fixtures/lowpass_long.f32 \
-                  --out out/fir.cf32 --impl tiled_const --bench 20
-mkdir -p docs/profiles
-ncu --set full -o docs/profiles/fir ./build/rfgpu fir --in out/bench/bench_tone.cf32 \
-    --taps tests/fixtures/lowpass_long.f32 --out out/fir.cf32 --impl tiled_const
-```
-
-## How it is tested
-
-- `tools/gen_fixtures.py` generates synthetic captures with known ground truth: tones plus noise,
-  and a 2-channel capture where one channel is a delayed copy of the other.
-- `tools/reference.py` computes the same operations on the CPU with NumPy/SciPy.
-- `tests/test_pipeline.py` runs the GPU tool on each fixture and checks the output against the
-  reference with explicit tolerances. It covers edge cases (lengths not divisible by the block
-  size, short inputs, long filters, zero input) and checks that cross-correlation recovers the
-  known delay.
-- CI on GitHub Actions (`.github/workflows/ci.yml`) runs the CPU tests on Python 3.10 and 3.14,
-  checks that the fixture generator reproduces the committed fixtures byte for byte, and builds
-  `rfgpu` with CUDA 13.4 and warnings as errors. Hosted runners have no GPU, so the GPU tests
-  run locally.
-
-Data format: `.cf32` files are interleaved little-endian float32 `[I, Q, I, Q, ...]` (SigMF
-`cf32_le` convention), each with a `.json` sidecar holding sample rate, seed, and ground truth.
+- **Three operations, nine kernels.** Every implementation variant stays selectable
+  (`--impl`), so each optimization is measured against the one before it.
+- **Measured speedups.** The FIR filter runs 2.9× faster than the naive kernel with shared-memory
+  tiling and constant-memory taps; cross-correlation runs about 1000× faster through cuFFT.
+- **Verified results.** 121 tests check the float64 reference and compare every GPU variant
+  against it, with explicit tolerances and edge cases (partial blocks, inputs shorter than the
+  filter, zeros, recovery of a known delay).
+- **A compiler for the pipeline.** `sigflowc` goes from source to a scheduled graph IR, applies
+  dead-node elimination, liveness-based buffer reuse (−40 % GPU memory) and kernel fusion, and
+  emits either a script or a standalone CUDA program.
 
 ## Results
 
-> Filled in from real profiler output only. See `docs/PROFILING_LOG.md` for the full entries.
+Measured on an NVIDIA GeForce RTX 5080 Laptop GPU with CUDA 13.4 (driver 617.42). Kernel time
+is the median of five rounds of 20 timed runs after 3 warm-up runs, from CUDA events, with
+transfers excluded. Memory throughput comes from Nsight Compute.
 
-Kernel time is the mean of 20 runs timed with CUDA events after 3 warm-up runs, with transfers
-excluded. Memory bandwidth is Nsight Compute's "Max Bandwidth": the utilization of the busiest
-memory unit, as a percentage of its peak.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/figures/fir_kernel_time-dark.png">
+  <img alt="FIR kernel time by variant, 63 and 1025 taps" src="docs/figures/fir_kernel_time.png">
+</picture>
 
-FIR, 2^24 samples (128 MB):
-
-| Variant | Taps | Kernel time | Memory bandwidth (% of peak) | Speedup vs. naive |
+| FIR, 2^24 samples | Taps | Kernel time | Memory throughput | Speedup |
 |---|---|---|---|---|
-| naive | 63 | 1.559 ms | 98.83 | 1.0× |
-| shared-memory tiled | 63 | 1.130 ms | 98.29 | 1.38× |
-| tiled, taps in constant memory | 63 | 0.655 ms | 94.51 | 2.38× |
-| naive | 1025 | 23.74 ms | 93.81 | 1.0× |
-| shared-memory tiled | 1025 | 15.10 ms | 98.81 | 1.57× |
-| tiled, taps in constant memory | 1025 | 8.22 ms | 98.90 | 2.89× |
+| naive | 63 | 1.66 ms | 98.8 % | 1.0× |
+| shared-memory tile | 63 | 1.16 ms | 98.3 % | 1.44× |
+| tile + constant-memory taps | 63 | 0.74 ms | 95.5 % | 2.25× |
+| naive | 1025 | 24.9 ms | 93.8 % | 1.0× |
+| shared-memory tile | 1025 | 15.1 ms | 98.8 % | 1.65× |
+| tile + constant-memory taps | 1025 | 8.65 ms | 99.0 % | 2.88× |
 
-Cross-correlation, 2^18 samples per channel (524287 lags):
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/figures/xcorr_kernel_time-dark.png">
+  <img alt="Cross-correlation kernel time by variant, log scale" src="docs/figures/xcorr_kernel_time.png">
+</picture>
 
-| Variant | Kernel time | Memory bandwidth (% of peak) | Speedup vs. naive |
+| Cross-correlation, 2^18 samples per channel | Kernel time | Memory throughput | Speedup |
 |---|---|---|---|
-| naive | 150.6 ms | 95.88 | 1.0× |
-| shared-memory tiled | 68.7 ms | 92.42 | 2.19× |
-| cuFFT-based | 0.140 ms | 57.01 (conjugate-multiply kernel) | about 1070× |
+| naive (time domain) | 149.4 ms | 95.9 % | 1.0× |
+| shared-memory tile | 68.4 ms | 92.6 % | 2.18× |
+| cuFFT-based | 0.145 ms | 57.0 % (conjugate multiply) | about 1000× |
 
-The cuFFT-based version overtakes the time-domain kernels between 2^10 and 2^12 samples per
-channel. Host-to-device plus device-to-host transfers take about 25 ms for the FIR input and
-about 1.1 ms for the cross-correlation input, which is more than the fastest kernel in both
-cases.
+Findings:
 
-Measured on: NVIDIA GeForce RTX 5080 Laptop GPU · CUDA: 12.8 · Driver: 572.76 (WSL2). Re-timed
-after the move to CUDA 13.4 and driver 617.42: every time-domain kernel is within ±6 % of these
-numbers, inside the round-to-round noise of this laptop GPU, so the speedups hold (see the
-last entry in `docs/PROFILING_LOG.md`).
+- The naive kernels already run near full occupancy; their warps spend 67 to 75 % of their cycles
+  waiting on global-memory loads. Staging each block's samples in shared memory removes most of
+  those loads, and moving the FIR taps to constant memory removes the rest.
+- For cross-correlation the larger gain is algorithmic: the FFT route does `O(N log N)` work
+  instead of `O(N²)` and overtakes the time-domain kernels between 2^10 and 2^12 samples per
+  channel. It is also more accurate at this size, since the time-domain kernels keep one long
+  float32 running sum per lag.
+- Once the kernels are fast, transfers dominate: moving the 128 MB FIR input to the GPU and the
+  result back takes about 38 ms, against 0.74 ms for the fastest FIR kernel. That is what the
+  streaming work on the roadmap addresses.
 
-## What I built, what I profiled, what I changed
+The full analysis of every iteration, including negative results, is in
+[`docs/PROFILING_LOG.md`](docs/PROFILING_LOG.md).
 
-> Draft written by an AI agent from the profiling log. To be rewritten in the author's own
-> words.
+## SigFlow
 
-**Built.** A command-line tool, `rfgpu`, with three operations on recorded IQ samples: a framed
-FFT spectrum (cuFFT), an FIR filter, and cross-correlation. The FIR filter has three kernel
-variants and cross-correlation has three, all selectable with `--impl`, so every older variant
-stays available as a baseline. A pytest harness runs each variant on synthetic fixtures with
-known ground truth and compares it to a float64 NumPy/SciPy reference.
+SigFlow describes a pipeline as a dataflow graph. `sigflowc` compiles it for the kernels above:
 
-**Profiled.** Kernel and transfer times come from CUDA events (20 runs after warm-up, setup
-excluded). Per-kernel metrics come from Nsight Compute. Nsight Systems recorded no GPU-side
-data under WSL2 on this machine, so there are no timeline captures.
+```text
+a    = capture("fixtures/ch0.cf32", rate=1e6)
+b    = capture("fixtures/ch1.cf32", rate=1e6)
+la   = a |> fir(taps="fixtures/lowpass.f32")
+lb   = b |> fir(taps="fixtures/lowpass.f32")
+spec = la |> fft(n=1024) |> magnitude
+corr = xcorr(la, lb)
 
-**Changed.**
-
-- The naive FIR and cross-correlation kernels were not limited by DRAM or by arithmetic. Their
-  warps spent 67 to 75 % of the cycles between instructions waiting on the queue for global
-  memory loads, with occupancy already near 100 %.
-- Staging the samples each block needs in shared memory gave 1.4× to 1.6× for FIR and 2.2×
-  for cross-correlation.
-- After that, the FIR tap loop still made one global load per multiply-add. Moving the taps to
-  constant memory gave a further 1.7× to 1.8×.
-- For cross-correlation the larger gain was algorithmic: the FFT version does `O(N log N)`
-  work instead of `O(N^2)`, and is about 1000× faster at 2^18 samples per channel. It is also
-  more accurate there, because the time-domain kernels keep one long float32 running sum per
-  lag.
-- With the kernels this fast, the transfers dominate end-to-end time. That is what the
-  streaming item on the roadmap (pinned memory, overlapping transfers with compute) addresses.
-
-## Roadmap
-
-See [`docs/ROADMAP.md`](docs/ROADMAP.md). Planned after the MVP (minimum viable product):
-
-1. **Streaming:** pinned host memory, a ring buffer, and CUDA streams that overlap data
-   transfers with compute, measured against real-time sample rates.
-2. **Channelizer:** a polyphase filter bank that splits a wideband capture into sub-channels.
-3. **Direction finding:** GCC-PHAT (generalized cross-correlation with phase transform) for TDOA
-   (time difference of arrival) between antennas, then DOA (direction of arrival) estimation for
-   a simulated antenna array.
-4. **Real recordings:** public SigMF datasets in addition to synthetic data.
-5. **Jetson portability:** unified memory, and the power and clock limits of embedded GPUs.
-
-## Repository layout
-
-```
-src/        C++17 / CUDA sources and the rfgpu CLI
-tools/      Python fixture generator and CPU reference
-tests/      pytest harness and fixtures
-docs/       profiling log, roadmap, Nsight Compute reports (docs/profiles)
+emit spec -> "out/spectrum.f32"
+emit corr -> "out/xcorr.cf32"
 ```
 
-## Working with AI agents
+| Stage | What it does |
+|---|---|
+| Front end | Lexer, recursive-descent parser, semantic analysis (names, types, sample rates, cycles) with caret diagnostics |
+| Graph IR | AST to DAG, dead-node elimination, Kahn scheduling with source-order tie-breaking |
+| Memory planning | Liveness analysis and buffer-slot reuse: 40 % less GPU memory on the program above |
+| Kernel fusion | Batches FIRs that share their taps into one launch |
+| Backends | A script of `rfgpu` commands, or a CUDA program that keeps every value on the GPU |
+| Viewer | A TypeScript page that draws the IR before and after each pass |
 
-Agent instructions live in [`AGENTS.md`](AGENTS.md). Custom kernels are written by hand by the
-author; agents help with host code, tests, tooling, and reviews.
+Language reference, compiler design, and measurements: [`compiler/README.md`](compiler/README.md).
+
+## Getting started
+
+### Requirements
+
+- Linux or WSL2 with an NVIDIA GPU and driver
+- CUDA Toolkit 12.8 or newer (nvcc, cuFFT)
+- CMake 3.24 or newer and a C++17 compiler
+- Python 3.10 or newer
+- Node.js 20 or newer, only for the DAG viewer
+
+### Build and test
+
+```bash
+pip install -r requirements.txt
+
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
+pytest -q tests/                                  # GPU tests skip without a GPU
+
+cmake -S compiler -B compiler/build
+cmake --build compiler/build -j
+ctest --test-dir compiler/build --output-on-failure
+```
+
+### Usage
+
+```bash
+./build/rfgpu spectrum --in tests/fixtures/tone.cf32 --out out/spectrum.cf32 --nfft 1024
+./build/rfgpu fir --in tests/fixtures/tone.cf32 --taps tests/fixtures/lowpass.f32 \
+                  --out out/fir.cf32 --impl tiled_const
+./build/rfgpu xcorr --a tests/fixtures/ch0.cf32 --b tests/fixtures/ch1.cf32 \
+                    --out out/xcorr.cf32 --impl fft --bench 20     # prints timings as JSON
+./build/rfgpu --help                                               # every operation and variant
+```
+
+Samples are `.cf32` files (interleaved little-endian float32 I/Q, the SigMF `cf32_le` layout),
+each with a `.json` sidecar holding the sample rate and ground truth. Filter taps are raw float32
+`.f32` files.
+
+### Reproducing the measurements
+
+```bash
+python tools/gen_bench.py --out out/bench                 # large inputs, not committed
+python tools/make_figures.py collect-times                # re-time every variant
+python tools/make_figures.py plot                         # regenerate docs/figures/
+```
+
+Profiling setup, including enabling GPU performance counters for Nsight Compute under WSL2, is
+in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
+
+## Project layout
+
+```text
+src/                CUDA kernels, the rfgpu CLI, and the rfgpu_ops library
+tests/              pytest suites and committed fixtures
+tools/              fixture and benchmark generators, CPU reference, figure generation
+compiler/           sigflowc: sources, tests, examples, and the DAG viewer
+docs/               roadmap, profiling log, development notes, figures, Nsight reports
+```
+
+## Documentation
+
+| Document | Contents |
+|---|---|
+| [`docs/PROFILING_LOG.md`](docs/PROFILING_LOG.md) | Every optimization iteration with its measurements |
+| [`docs/ROADMAP.md`](docs/ROADMAP.md) | Status and planned work |
+| [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) | Environment, test suites, profiling setup |
+| [`compiler/README.md`](compiler/README.md) | The SigFlow language and compiler |
