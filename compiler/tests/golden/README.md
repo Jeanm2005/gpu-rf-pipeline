@@ -18,7 +18,7 @@ The flags come from the first line of the program:
 ```
 
 Naming: `lex_*`, `parse_*`, `sema_*`, ... for the stage a case exercises; positive and negative
-cases sit side by side (`compiler/AGENTS.md` asks for at least one of each per grammar rule).
+cases sit side by side (every grammar rule has at least one of each).
 
 To add or refresh golden files:
 
@@ -29,5 +29,4 @@ git diff tests/golden                                          # review before c
 ```
 
 `cmake --build build --target update_golden_<name>` regenerates a single case through the same
-CMake runner CTest uses. Per `compiler/AGENTS.md`, a golden change must be explained in the
-commit message.
+CMake runner CTest uses. Every golden change is explained in the commit message that makes it.

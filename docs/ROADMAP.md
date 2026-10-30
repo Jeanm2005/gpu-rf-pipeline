@@ -1,335 +1,66 @@
 # Roadmap
 
-Every task from the current state of the repository to the end of the project, in the order it
-should be done. Three stages:
+The project has three stages, each built on a finished and measured previous one:
 
-1. **MVP** (minimum viable product): the `rfgpu` pipeline described in `README.md`.
-2. **SigFlow compiler** (`compiler/`): phases A, B, C from `compiler/README.md`.
-3. **Extensions:** streaming, channelizer, direction finding, real recordings, Jetson.
+1. **GPU pipeline (`rfgpu`).** Spectrum, FIR filtering, and cross-correlation on recorded IQ
+   data, verified against a CPU reference and optimized kernel by kernel.
+2. **SigFlow compiler (`sigflowc`).** A DSL for these pipelines, compiled through a graph IR to
+   scheduled, memory-planned, fused GPU programs.
+3. **Extensions.** Streaming, channelization, direction finding, real recordings, and embedded
+   targets.
 
-Nothing in a later stage gets code until the stage before it is finished and measured.
+Measurements behind every completed optimization are in [`PROFILING_LOG.md`](PROFILING_LOG.md).
 
-Who writes each task, following `AGENTS.md` and `compiler/AGENTS.md`:
+## Stage 1: GPU pipeline — complete
 
-- **[J]** Jean writes it by hand (custom kernels, core compiler passes, profiling write-ups).
-  Agents explain, sketch skeletons, review, and propose tests.
-- **[A]** An agent may write it (host code, CMake, Python, tests, docs).
-- **[J+A]** Jean decides or runs it on his machine; an agent prepares or assists.
+| Milestone | Delivered |
+|---|---|
+| Foundations | Deterministic synthetic fixtures with ground truth (`tools/gen_fixtures.py`) |
+| CPU reference | `tools/reference.py`: spectrum, magnitude, FIR, and cross-correlation in NumPy/SciPy, checked against brute-force definitions |
+| Host scaffold | `rfgpu` CLI, `.cf32` / `.f32` I/O, error-checked CUDA and cuFFT calls, CUDA-event timing harness (`--bench`), CI |
+| Spectrum | Batched cuFFT over fixed-size frames, last frame zero-padded |
+| FIR | `naive` → `tiled` (shared-memory tile with halo) → `tiled_const` (taps in constant memory): 2.38× to 2.89× over naive |
+| Cross-correlation | `naive` → `tiled` (2.19×) → `fft` (cuFFT, about 1070× at 2^18 samples per channel) |
+| Profiling | Nsight Compute reports for every variant in `docs/profiles/`, figures in `docs/figures/` |
 
-## Stage 1: MVP
+Open items:
 
-### M0. Foundations
+- [ ] Further FIR iterations, each motivated by a profiler metric: a block-size sweep, and a
+      structure-of-arrays layout for the I and Q components.
 
-- [x] **[A]** Project docs, repository scaffolding, `.gitignore`.
-- [x] **[A]** `tools/gen_fixtures.py`: deterministic fixtures with ground truth, plus
-      `tests/test_fixtures.py`.
+## Stage 2: SigFlow compiler — complete
 
-### M1. CPU reference
+| Phase | Delivered |
+|---|---|
+| A: front end and script backend | Lexer, recursive-descent parser, semantic analysis (names, types, sample rates, cycles), graph IR, Kahn scheduler with source-order tie-breaking, dead-node elimination, a backend that emits a script of `rfgpu` commands |
+| B: memory planning and viewer | Liveness analysis and buffer reuse (−40 % GPU memory on `two_channel.sf`, measured), TypeScript DAG viewer |
+| C: fusion and CUDA backend | Horizontal fusion of FIRs that share taps, a CUDA backend that keeps every value on the GPU, batched FIR kernel, fused vs. unfused measurements |
 
-The reference defines what every GPU operation must compute, so it comes before any GPU code.
+Open items:
 
-- [x] **[A]** `tools/reference.py`: `spectrum`, `magnitude`, `fir`, `xcorr` in NumPy/SciPy, with
-      `.cf32` / `.f32` read and write helpers and a CLI that mirrors `rfgpu`.
-- [x] **[A]** `tests/test_reference.py`: the reference checked against brute-force definitions
-      and the fixture ground truth (tone bins, stopband rejection, known delay).
-- [x] **[J]** Read the three output conventions in the `tools/reference.py` docstring and
-      confirm or change them. The kernels have to match them exactly. Confirmed unchanged by
-      Jean on 2026-10-08.
-
-### M2. Toolchain and host scaffold
-
-- [x] **[J+A]** Install the CUDA Toolkit in WSL2: now CUDA 13.4 in `/usr/local/cuda-13.4`
-      (`nvcc`, cuFFT, `nsys`, `ncu`) with the default GCC 15. See "Toolchain notes" below.
-- [x] **[A]** `CMakeLists.txt`: C++17 and CUDA, `rfgpu` target, cuFFT linked, Release and Debug.
-- [x] **[A]** `src/check.hpp`: `CUDA_CHECK` and `CUFFT_CHECK` macros (file, line, error string).
-- [x] **[A]** `src/io.hpp` / `src/io.cpp`: read and write `.cf32` and `.f32`, with clear errors
-      for a missing file or an odd float count.
-- [x] **[A]** `src/main.cpp`: `rfgpu` CLI with `spectrum`, `fir`, `xcorr` subcommands and
-      `--impl` dispatch through a table, so adding a variant is one line. Also `rfgpu info`
-      (GPU, CUDA versions, implementation list as JSON).
-- [x] **[A]** Timing harness: CUDA events, warm-up, at least 10 runs, mean and standard
-      deviation, host-to-device and device-to-host time reported separately from kernel time
-      (`--bench N`, machine-readable output).
-- [x] **[A]** `.github/copilot-instructions.md` as a copy of `AGENTS.md`.
-- [x] **[A]** CI: `.github/workflows/ci.yml` with the CPU tests (Python 3.10 and 3.14), the
-      fixture reproducibility check, and a CUDA 13.4 build with warnings as errors in the
-      `nvidia/cuda:13.4.3-devel-ubuntu26.04` container (added 2026-10-23). Hosted runners have
-      no GPU, so `tests/test_pipeline.py` skips there. First run on GitHub passed on
-      2026-10-23 (run 40018228158). Running the GPU tests in CI would need a self-hosted runner
-      on this machine. A `sigflowc` job (build with warnings as errors, then `ctest`) was
-      added 2026-10-27.
-
-#### Toolchain notes
-
-Current setup (checked 2026-10-23): Ubuntu 26.04 (GCC 15, glibc 2.43) under WSL2, Windows
-driver 617.42, CUDA Toolkit 13.4 in `/usr/local/cuda-13.4` with its `bin` on `PATH`. The plain
-Quick start commands work with no extra flags:
-`cmake -S . -B build -DCMAKE_BUILD_TYPE=Release`. The build has no warnings and all 116 tests
-pass. `rfgpu info` reports compute capability 12.0, CUDA runtime 13.4, driver CUDA 13.4.
-Nsight Systems 2026.3 now records GPU-side data (`cuda_gpu_kern_sum`, `cuda_gpu_mem_time_sum`),
-which it did not on the old driver.
-
-History: the MVP measurements in `docs/PROFILING_LOG.md` and the README (iterations 0 to 2)
-were taken on the earlier setup, driver 572.76 with CUDA 12.8.1. That driver supported CUDA up
-to 12.8 only, and CUDA 12.8's `nvcc` could not use GCC 15 or glibc 2.43, so it needed `g++-14`,
-a runfile install into `~/cuda-12.8`, and a patched `crt/math_functions.h`. That install has
-been removed. Every variant was re-timed on CUDA 13.4 on 2026-10-23 (CUDA events only) and
-matches within the noise; see the last entry in `docs/PROFILING_LOG.md`. After the driver
-update `ncu` fails with `ERR_NVGPUCTRPERM` again: re-enable GPU performance counters in the
-NVIDIA Control Panel (Developer, Manage GPU Performance Counters) as in M6.
-
-### M3. Spectrum (cuFFT)
-
-- [x] **[A]** `src/spectrum.cu`: batched cuFFT C2C plan over `nfft`-sized frames (Jean chose
-      to have the agent write it; it has no custom kernel).
-- [x] **[A]** `tests/test_pipeline.py`: harness that runs `rfgpu` on a fixture and compares to
-      `tools/reference.py` with `rtol` / `atol` stated in each test. Skips cleanly when the
-      binary or the GPU is missing.
-- [x] **[A]** Spectrum tests: `tone`, `tone_odd` (partial last frame), `short` (shorter than one
-      frame), `zeros`.
-
-### M4. FIR, naive
-
-- [x] **[A]** `src/fir.cu` host side: buffer allocation, transfers, launch site with a
-      launch-configuration comment, and a kernel signature with a `// TODO` body.
-- [x] **[J]** Naive FIR kernel: one thread per output sample, taps read from global memory.
-- [x] **[J]** Read `fir_naive_kernel` until every line can be explained without notes.
-      Done 2026-10-23.
-- [x] **[A]** FIR tests: `identity`, `lowpass`, `lowpass_long` (filter longer than one tile),
-      `tone_odd`, `short` (input shorter than the filter), `zeros`.
-
-### M5. Cross-correlation, naive
-
-- [x] **[A]** `src/xcorr.cu` host side and kernel skeleton.
-- [x] **[J]** Naive time-domain kernel: one thread per lag.
-- [x] **[J]** Read `xcorr_naive_kernel` until every line can be explained without notes.
-      Done 2026-10-23.
-- [x] **[A]** Cross-correlation tests: full output against the reference, recovery of
-      `true_delay_samples` from `ch0` / `ch1`, unequal input lengths, `short`, `zeros`.
-
-All tests must pass before M6 starts (correctness before speed).
-
-### M6. Profiling baseline
-
-- [x] **[A]** `tools/gen_bench.py`: large benchmark inputs written to `out/bench/` (not
-      committed), with `tests/test_gen_bench.py`. The fixtures are too small to show memory
-      behaviour. Defaults: `bench_tone` with 2^24 samples (128 MB) for FIR, and `bench_ch0` /
-      `bench_ch1` with 2^18 samples each for cross-correlation.
-- [x] **[J+A]** Get `ncu` reading performance counters under WSL2. First try (2026-10-07):
-      `ncu` starts but fails with `ERR_NVGPUCTRPERM` (no permission to access GPU performance
-      counters). The setting is on the Windows side: NVIDIA Control Panel, Desktop menu, Enable
-      Developer Settings, then Developer, Manage GPU Performance Counters, allow access for
-      all users. If it still fails after that, record it and use CUDA events plus Nsight
-      Systems. Second try (2026-10-08): same `ERR_NVGPUCTRPERM`. `nsys profile` runs and
-      records the host-side CUDA API calls (`cuda_api_sum`), but its report has no GPU-side
-      data: `cuda_gpu_kern_sum` and `cuda_gpu_mem_time_sum` are skipped with "does not contain
-      CUDA kernel data". Later on 2026-10-08, after the Windows setting was changed, `ncu
-      --set full` works (the output directory must exist first: `mkdir -p docs/profiles`).
-      `nsys` still records no GPU-side data, so kernel and transfer times come from CUDA
-      events (`--bench`) and everything else from `ncu`.
-- [x] **[J]** `docs/PROFILING_LOG.md`: iteration 0 for naive FIR and naive cross-correlation
-      (kernel time, transfer time, memory bandwidth, occupancy, top bottleneck). Jean handed
-      the logging of iterations to the agent on 2026-10-08; the analysis in each entry is
-      still his to check.
-
-### M7. FIR optimization
-
-- [x] **[A]** `--impl tiled` host side in `src/fir.cu`: wrapper, launch site with dynamic
-      shared memory for the tile, a clear error when the halo does not fit in one block's
-      shared memory, and `fir_tiled_kernel` with a `// TODO` body. The FIR tests pick the
-      variant up from `rfgpu info` and fail for it until the kernel is written.
-- [x] **[J]** `--impl tiled`: shared-memory tiles with a halo of `num_taps - 1` samples. Must
-      handle a filter longer than one tile. Written by an agent at Jean's explicit request
-      (2026-10-08).
-- [x] **[J]** Profile it and write the log entry. Negative results are logged too. Done by an
-      agent (iteration 1).
-- [x] **[J]** Read `fir_tiled_kernel` until every line can be explained without notes.
-      Done 2026-10-23.
-- [x] **[A]** `--impl tiled_const` host side: taps copied to a `__constant__` array with
-      `cudaMemcpyToSymbol` (at most 8192 taps), same launch configuration as `tiled`, and
-      `fir_tiled_const_kernel` with a `// TODO` body. Motivated by iteration 1: the tap loop
-      still does one global load per multiply-add.
-- [x] **[J]** `fir_tiled_const_kernel` body, then profile it and log iteration 2. Written,
-      profiled, and logged by an agent at Jean's explicit request (2026-10-08).
-- [ ] **[J]** Read `fir_tiled_const_kernel` until every line can be explained without notes.
-- [ ] **[J+A]** Further iterations, each motivated by a profiler metric that an agent may point
-      out (candidates: taps in constant memory, block-size sweep, structure-of-arrays layout for
-      I and Q).
-
-### M8. Cross-correlation optimization
-
-The three kernels and log entries below were written by an agent at Jean's explicit request
-(2026-10-08).
-
-- [x] **[J]** `--impl tiled`, profiled, with a log entry (cross-correlation iteration 1).
-- [x] **[J+A]** `--impl fft`: cuFFT-based correlation (forward FFTs, conjugate multiply, inverse
-      FFT) for comparison. `FftPlan` moved to `src/fft_plan.hpp` so `spectrum.cu` and
-      `xcorr.cu` share it.
-- [x] **[J]** Log entry comparing naive, tiled, and FFT-based, with the input size where the
-      FFT version starts to win (cross-correlation iteration 2: between 2^10 and 2^12 samples
-      per channel).
-- [ ] **[J]** Read `xcorr_tiled_kernel` and `xcorr_conj_mul_kernel` until every line can be
-      explained without notes.
-
-### M9. MVP write-up
-
-- [x] **[J+A]** `README.md` results table filled in from the profiling log (real numbers only),
-      GPU / CUDA / driver line, status column updated.
-- [ ] **[J]** "What I built, what I profiled, what I changed" section. An agent wrote a draft
-      from the profiling log (2026-10-08), marked as a draft in the README; Jean rewrites it
-      in his own words.
-- [ ] **[J]** Screenshots in `docs/screenshots/`. None yet: the profiles were read from the
-      `ncu` command line. Open the reports in `docs/profiles/` with the Nsight Compute GUI
-      (`ncu-ui`) to capture them. Nsight Systems timelines are possible now too (see the
-      toolchain notes).
-- [x] **[A]** Clean-clone check: the Quick start commands build and pass on a fresh checkout
-      (2026-10-08: fresh clone, 116 tests pass, regenerated fixtures are byte-identical to the
-      committed ones). Rechecked 2026-10-23 on CUDA 13.4: plain `cmake -S . -B build` works
-      with GCC 15, 116 tests pass, fixtures still byte-identical.
-
-## Stage 2: SigFlow compiler (`compiler/`)
-
-Phase A only needs a working `rfgpu`, so it can start after M5 if Jean wants to alternate
-between kernel work and compiler work. Phase C needs the MVP profiling numbers as its baseline.
-
-### C-A. Phase A: front end, IR, scheduling, script backend
-
-- [x] **[A]** `compiler/CMakeLists.txt`, GoogleTest, the golden-test runner, and
-      `--update-golden`. Done 2026-10-26: `add_golden_test()` (`compiler/cmake/`) registers a
-      CTest case per golden file plus an `update_golden_<name>` target; GoogleTest is wired via
-      `FetchContent`. `sigflowc --update-golden tests/golden` landed with `src/main.cpp`
-      (2026-10-27), and golden cases are now discovered from `tests/golden/*.sf`.
-- [x] **[J]** Design the token, AST, and IR data structures. **[A]** fills in header boilerplate
-      once they are designed. Done 2026-10-27: `include/sigflow/token.hpp`, `ast.hpp`,
-      `types.hpp`, `ir.hpp`.
-- [x] **[A]** `src/main.cpp` (`--emit=tokens|ast|ir|schedule|json`, `-o`) and the diagnostics
-      printer (file, line, column, source line with a caret). Diagnostics done 2026-10-26:
-      `sigflow::DiagnosticEngine` and `format_diagnostic()` in the new `sigflow_core` library
-      (`compiler/include/sigflow/diagnostics.hpp`, `compiler/src/diagnostics.cpp`). Driver done
-      2026-10-27: `sigflowc` with `--update-golden DIR`
-      (`src/main.cpp`, `src/driver.cpp`); every `tests/golden/*.sf` is registered
-      automatically and compared on stdout, stderr, and exit code. All `--emit` modes
-      (`tokens`, `ast`, `check`, `ir`, `schedule`, `json`, `script`) and `-o` done
-      2026-10-27.
-- [x] **[J]** `src/lexer.cpp`. **[A]** lexer unit tests and goldens (unterminated string, stray
-      character, empty program). Done 2026-10-27: `Token` / `TokenKind` in
-      `include/sigflow/token.hpp`, `SourceFile` in `include/sigflow/source.hpp`, 13 unit tests,
-      6 goldens (`tests/golden/lex_*.sf`, `empty_program.sf`).
-- [x] **[J]** `src/parser.cpp`, recursive descent. Grammar changes are recorded in
-      `compiler/README.md`. **[A]** one positive and one negative golden per grammar rule.
-      Done 2026-10-27: AST in `include/sigflow/ast.hpp`, `--emit=ast`, panic-mode recovery
-      (one error per statement, parsing resumes at the next line), 8 unit tests, 6 goldens
-      (`tests/golden/parse_*.sf`).
-- [x] **[J]** `src/sema.cpp`: name resolution, argument, type, and sample-rate checks.
-      **[A]** negative goldens (unknown name, wrong argument count, unknown keyword argument,
-      type mismatch, rate mismatch). Done 2026-10-27: types in `include/sigflow/types.hpp`,
-      `--emit=check`, declarative bindings with cycle detection (reported as `a -> b -> a`),
-      a warning when an emit path's extension does not match the type, 12 unit tests, 11
-      goldens (`tests/golden/sema_*.sf`) covering every required negative case, including the
-      cycle and the empty program.
-- [x] **[J+A]** IR builder (AST to DAG) and the text and JSON dumps. Done 2026-10-27:
-      `include/sigflow/ir.hpp` (`Graph`, `Node`, `Op`), `src/ir_builder.cpp`, `--emit=ir`
-      and `--emit=json`; pipes become ordinary inputs, a shared binding is one node, an alias
-      adds none. 5 unit tests, 3 goldens (`ir_two_channel`, `ir_out_of_order`,
-      `json_two_channel`).
-- [x] **[J]** `src/schedule.cpp`: Kahn's algorithm, cycle detection, source-order tie-breaking.
-      **[A]** unit tests on hand-built graphs. Done 2026-10-27: `--emit=schedule`; the ready
-      set is ordered by source line, column, then id; nodes on or behind a cycle are returned
-      as unscheduled (sema already rejects cyclic programs, so the driver reports that case as
-      an internal error). 8 unit tests on hand-built graphs (chains, ties, a diamond, duplicate
-      edges, cycles, a self-loop, dead nodes), 2 goldens.
-- [x] **[J+A]** Dead-node elimination with `--no-dce`. Done 2026-10-27: `src/dce.cpp`, a
-      backward walk from every emit; ids are kept so `--emit=ir` with and without `--no-dce`
-      can be compared line by line. 3 unit tests, 3 goldens (`dce_unused*.sf`).
-- [x] **[A]** `rfgpu` gains a magnitude output (`frames<f32, N>`), which `two_channel.sf` needs
-      and the MVP CLI does not have. Done 2026-10-26: `rfgpu magnitude --in X.cf32 --out OUT.f32`,
-      one thread per sample, tested against `reference.magnitude()`.
-- [x] **[A]** `src/backend_script.cpp`: emits a script of `rfgpu` commands. Done 2026-10-27:
-      `--emit=script` is the default and `-o FILE` writes it (executable); one `rfgpu` command
-      per scheduled node, intermediates in a `mktemp -d` directory removed on exit, `$RFGPU`
-      overrides the binary. 2 goldens (`script_two_channel`, `script_quoting`).
-- [x] **[A]** `examples/*.sf` and `tests/e2e`: compile, run on the fixtures, compare to
-      `tools/reference.py`. Done 2026-10-27: `spectrum.sf`, `two_channel.sf`, `delay.sf`;
-      `tests/e2e/test_examples.py` evaluates each program's `--emit=json` IR with the reference
-      and compares every emitted file with tolerances measured on this GPU, checks each
-      capture's rate against its fixture sidecar, and recovers `true_delay_samples` from
-      `delay.sf`. 7 tests, all passing on the RTX 5080 Laptop GPU with CUDA 13.4.
-
-### C-B. Phase B: liveness and viewer
-
-- [x] **[J]** `src/liveness.cpp`: last use of each buffer, and buffer reuse. **[A]** unit tests.
-      Done 2026-10-27: live ranges on the schedule, first-fit slot assignment that frees a slot
-      the step after its value's last read (`--no-reuse` turns reuse off), buffer sizes from
-      the capture files (`--input-dir`), and `--emit=liveness`. 9 unit tests, 3 goldens. The script backend writes
-      intermediates to one work file per slot, and the GPU end-to-end tests run every example
-      with and without reuse (10 tests, all passing).
-- [x] **[J+A]** Measure peak GPU memory with and without reuse. Planned numbers recorded
-      2026-10-27 in `compiler/README.md` (two_channel: 983,032 → 589,816 bytes, 40% less;
-      first fit matches the live-bytes lower bound on every example). Measured 2026-10-28 on
-      the phase C CUDA backend with `compiler/tools/measure.py`: allocated memory drops 40.0 %
-      at 2^14 and 2^18 samples per channel, exactly as planned, and at 2^18 the driver-reported
-      GPU memory drops by 6 MiB (26 → 20 MiB); times unchanged. Entry in
-      `docs/PROFILING_LOG.md`.
-- [x] **[A]** `viewer/` scaffolding (TypeScript build, JSON loading). Done 2026-10-27:
-      `compiler/viewer/` with TypeScript 7 (`tsc` only, no bundler), a validating parser for
-      `--emit=json`, file picker / drag and drop / `?src=` loading, a static dev server, and
-      `node:test` suites run against the compiler's golden JSON (3 tests).
-- [x] **[J]** Graph layout and rendering of the IR before and after each pass. Done
-      2026-10-27: `src/layout.ts` (longest-path layering, barycenter sweeps that keep the
-      ordering with the fewest crossings, layout computed once so nodes stay put between
-      passes), `src/render.ts` (SVG graph with pass selection and removed nodes faded in place,
-      a buffer-slot timeline, a schedule table). 5 layout tests; checked in the browser at
-      desktop and phone widths.
-
-### C-C. Phase C: fusion and CUDA backend
-
-- [x] **[J]** `src/fuse.cpp` with `--no-fuse`. **[A]** unit tests on hand-built graphs.
-      Done 2026-10-28: horizontal fusion of FIRs with the same taps that don't depend on each
-      other (at most 8 per group, no cycle among launches), recorded as `Node::group`; the
-      scheduler launches a group as one unit and liveness frees buffers per launch, so no group
-      member overwrites a buffer another member reads. 8 unit tests, 3 goldens. Vertical fusion
-      (FFT into magnitude) would need cuFFT store callbacks: noted under deferred ideas.
-- [x] **[J+A]** CUDA backend: generated C++ that calls the existing kernels. The fused kernel
-      templates are Jean's. Unfused backend done 2026-10-28: `--emit=cuda`
-      (`src/backend_cuda.cpp`) writes a program that uploads the captures once, keeps every
-      value in its liveness slot on the GPU, and downloads only emitted values; it calls the
-      device-pointer entry points in `../src/device_ops.hpp` and links `rfgpu_ops`
-      (`tools/build_cuda.sh`). `../src/pipeline_runtime.hpp` handles setup, timing through
-      `Bench`, and a JSON report of launches, allocated and driver-reported GPU memory, and
-      phase times. The GPU end-to-end tests run both backends, with and without reuse (16
-      tests). Fused launches done 2026-10-28: a fusion group of FIRs becomes one call to
-      `fir_naive_batched_device` (`../src/fused.cu`, one grid row per channel, same arithmetic
-      as the naive kernel). `examples/filter_bank.sf` fuses three FIRs over inputs of different
-      lengths; the GPU end-to-end tests run every example by default, with `--no-reuse`, and
-      with `--no-fuse` on both backends (29 tests, all passing).
-- [x] **[J]** Measurements for `two_channel.sf`: kernel launches, peak GPU memory, end-to-end
-      time, fused against `--no-fuse`, logged in `docs/PROFILING_LOG.md`. Done 2026-10-28 with
-      `compiler/tools/measure.py`, at 2^14 and 2^18 samples per channel, plus
-      `filter_bank.sf`: 5 → 4 launches (confirmed by Nsight Systems) with no measurable time
-      change and 11.1 % more allocated memory on `two_channel`; 3 → 1 launches and a 2.9×
-      faster kernel phase on `filter_bank`.
-- [x] **[J+A]** `compiler/README.md` results table and stage status column. Done 2026-10-28.
+- [ ] Kernel selection in the CUDA backend (`--fir-impl`, `--xcorr-impl`), so generated
+      programs can use the optimized variants rather than only the naive kernels.
 
 ## Stage 3: Extensions
 
-Out of scope until stages 1 and 2 are finished and measured. Order can change.
+In priority order; the order can change.
 
 1. **Streaming.** A ring buffer of pinned host memory and CUDA streams that overlap transfers
-   with compute, processing continuous chunks the way live radio data arrives. Measured against
+   with compute, processing continuous chunks the way live radio data arrives, measured against
    real-time throughput (samples per second). Then streaming execution in `sigflowc`.
 2. **Channelizer.** A polyphase filter bank that splits a wideband capture into sub-channels.
 3. **Direction finding.** GCC-PHAT (generalized cross-correlation with phase transform) for TDOA
    (time difference of arrival) across channels, then DOA (direction of arrival) estimation for
-   a simulated antenna array. Then the matching SigFlow operations.
+   a simulated antenna array, with matching SigFlow operations.
 4. **Real recordings.** Public SigMF datasets in addition to synthetic data.
-5. **Jetson portability.** Notes on running on Jetson: unified memory, power and clock limits.
-6. **Parser fuzzer.** libFuzzer target for the SigFlow lexer and parser.
+5. **Jetson portability.** Unified memory, and the power and clock limits of embedded GPUs.
+6. **Parser fuzzing.** A libFuzzer target for the SigFlow lexer and parser.
 
 ## Deferred ideas
 
 - Vertical fusion of `fft |> magnitude`: compute the magnitude in a cuFFT store callback, so
   the complex spectrum never reaches GPU memory. Needs cuFFT's LTO callbacks (or the legacy
-  callbacks with static cuFFT and relocatable device code), so it is out of phase C's scope.
-
-- Fractional-sample delays in the two-channel fixture (the MVP fixture uses an integer delay).
-- A `--max-lag` option for cross-correlation, so a real-time user does not compute every lag.
+  callbacks with static cuFFT and relocatable device code).
+- Fractional-sample delays in the two-channel fixture (it currently uses an integer delay).
+- A `--max-lag` option for cross-correlation, so real-time use does not compute every lag.
+- GPU tests in CI, which would need a self-hosted runner with an NVIDIA GPU.

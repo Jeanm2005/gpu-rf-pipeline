@@ -63,16 +63,13 @@ STRING     = '"' { any character except '"' or newline } '"' ;
 comment    = "#" { any character } NEWLINE ;
 ```
 
-The grammar is a starting draft. Ambiguities and changes found while building the parser are
-recorded here:
+Notes on the grammar:
 
-- `term` accepts a `literal` (2026-10-27). The first draft had none, so `capture`'s positional
-  path string could not be parsed.
 - `call = IDENT` and `term = IDENT` overlap. The parser reads a bare `IDENT` as a call only on
   the right of `|>` (`x |> magnitude`); everywhere else it is a reference to a binding.
-- Bindings are declarative (2026-10-27): a name may be used on a line before the one that
-  defines it. That is what makes the program a graph to schedule rather than a list, and what
-  makes a cycle (`x = xcorr(a, y)`, `y = x |> fir(...)`) possible and worth reporting.
+- Bindings are declarative: a name may be used on a line before the one that defines it. That
+  is what makes the program a graph to schedule rather than a list, and what makes a cycle
+  (`x = xcorr(a, y)`, `y = x |> fir(...)`) possible and worth reporting.
 - `arg` needs two tokens of lookahead: `IDENT "="` starts a keyword argument, any other `IDENT`
   starts an expression.
 - Lexing details: a `+` is accepted after the exponent marker (`1e+6`), and `\r\n` line endings
@@ -117,7 +114,7 @@ cmake --build build -j
 ln -sfn ../tests/fixtures fixtures       # the examples read fixtures/*.cf32 (git-ignored link)
 RFGPU=../build/rfgpu bash out/run.sh     # writes out/spectrum.f32 and out/xcorr.cf32
 
-# Phase C backend: a CUDA program that keeps every value on the GPU
+# CUDA backend: a program that keeps every value on the GPU
 ./build/sigflowc examples/two_channel.sf --emit=cuda -o out/run.cu
 tools/build_cuda.sh out/run.cu out/run   # links ../build/librfgpu_ops.a
 out/run --bench 20 --warmup 3            # same outputs, plus a JSON report of launches,
@@ -129,18 +126,18 @@ pytest -q tests/e2e
 
 ## How it is tested
 
-- **Unit tests** (GoogleTest): lexer, scheduler (ordering, tie-breaking, cycles), and later
-  liveness and fusion on hand-built graphs.
+- **Unit tests** (GoogleTest): lexer, parser, semantic analysis, IR builder, scheduler
+  (ordering, tie-breaking, cycles), dead-node elimination, liveness, and fusion, the passes on
+  hand-built graphs.
 - **Golden tests:** each `tests/golden/*.sf` has an expected `--emit` output or expected
   diagnostics, compared exactly.
-- **End-to-end tests** (pytest, `tests/e2e/`): every program in `examples/` is compiled, its
-  script is run on the fixtures, and every emitted file is compared to the NumPy/SciPy reference
-  from `../tools/reference.py`, evaluated on the same IR (`--emit=json`). Needs `../build/rfgpu`
-  and a GPU; skips otherwise. `SIGFLOWC_BIN` and `RFGPU_BIN` point it at other builds.
+- **End-to-end tests** (pytest, `tests/e2e/`): every program in `examples/` is compiled for
+  both backends, by default and with `--no-reuse` and `--no-fuse`, run on the fixtures, and
+  every emitted file is compared to the NumPy/SciPy reference from `../tools/reference.py`,
+  evaluated on the same IR (`--emit=json`). Needs `../build/rfgpu` and a GPU; skips otherwise.
+  `SIGFLOWC_BIN` and `RFGPU_BIN` point it at other builds.
 
 ## Results
-
-> Filled in from real measurements only (phase C).
 
 Measured on an RTX 5080 Laptop GPU, CUDA 13.4, with `tools/measure.py` (five interleaved
 rounds of `--bench 20 --warmup 3`; medians). GPU memory is what the program allocates (slots,
@@ -158,14 +155,11 @@ time, since the naive cross-correlation dominates, and gives 11 % of the memory 
 two FIRs in one launch can't hand a buffer from one to the other. Where kernels are tiny and
 share their taps (`filter_bank.sf`), fusion makes the kernel phase 2.9× faster.
 
-### Planned GPU memory (phase B)
+### Planned GPU memory
 
-Computed by `sigflowc --emit=liveness --input-dir=../tests` (and `--no-reuse`) from the fixture
-sizes: the bytes every value needs if each gets its own buffer, against one buffer per slot after
-liveness analysis. These are compile-time plans, not measurements. The phase A backend runs each
-`rfgpu` command as its own process, so GPU buffers are not shared between operations and reuse
-cannot show up in a real GPU-memory measurement until the phase C CUDA backend keeps buffers on
-the device; that measurement goes in the table above.
+`sigflowc --emit=liveness --input-dir=../tests` (and `--no-reuse`) computes the memory plan at
+compile time from the fixture sizes: the bytes every value needs if each gets its own buffer,
+against one buffer per slot after liveness analysis. Unfused, as in these figures:
 
 | Program | Values | Buffers (no reuse → reuse) | Bytes (no reuse → reuse) | Saved | Busiest step |
 |---|---|---|---|---|---|
@@ -176,7 +170,7 @@ the device; that measurement goes in the table above.
 In all three, the plan with reuse equals the bytes live at the busiest step, which no plan can go
 below, so first-fit assignment is already optimal for these programs.
 
-### Measured GPU memory (phase B, on the phase C CUDA backend)
+### Measured GPU memory
 
 `two_channel.sf` compiled with `--emit=cuda`, with and without `--no-reuse`, measured with
 `tools/measure.py` (details in `../docs/PROFILING_LOG.md`). "Allocated" is what the program
@@ -191,14 +185,10 @@ in the allocator's 2 MiB pages.
 The allocation matches the compile-time plan above exactly, and at 2^18 the driver sees the
 same 6 MiB saving. Kernel and transfer times are unchanged within the noise.
 
-## Roadmap
+## Status
 
-1. **Phase A:** front end, graph IR, topological scheduling, dead-node elimination, script backend.
-2. **Phase B:** liveness analysis and buffer reuse; TypeScript DAG viewer.
-3. **Phase C:** kernel fusion and CUDA code generation, measured with Nsight Systems and Nsight
-   Compute.
-4. **Later:** streaming execution (CUDA streams), direction-finding operations (GCC-PHAT,
-   generalized cross-correlation with phase transform), a parser fuzzer (libFuzzer).
+Phases A to C are complete (lexer through fusion and the CUDA backend). Open items and later
+work are tracked in [`../docs/ROADMAP.md`](../docs/ROADMAP.md).
 
 ## Related work
 
@@ -206,8 +196,3 @@ Halide, TVM, and XLA compile array and tensor programs with graph IRs and kernel
 Radio represents radio pipelines as flowgraphs but schedules them at runtime rather than
 compiling and fusing them. SigFlow is a small, domain-specific take on the same ideas, built on
 hand-written kernels so every fusion decision can be measured.
-
-## Working with AI agents
-
-Agent rules for this folder live in [`AGENTS.md`](AGENTS.md). The core compiler passes are
-written by hand by the author; agents help with tooling, tests, and reviews.

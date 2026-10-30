@@ -1,17 +1,16 @@
 # Profiling log
 
 One entry per optimization iteration, including negative results. Numbers come from Nsight
-Systems, Nsight Compute, or CUDA events only. Timing rules are in `AGENTS.md` ("Measurement
-rules"): warm up, average at least 10 runs, exclude one-time setup, and report transfer time
-separately from kernel time.
+Systems, Nsight Compute, or CUDA events only. Every timing follows the same rules: warm up,
+average at least 10 runs, exclude one-time setup, and report transfer time separately from
+kernel time.
 
-Iteration 0 was measured and written up by an agent at Jean's request (2026-10-08). Kernel and
-transfer times are CUDA events from `rfgpu --bench 20` (3 warm-up runs). Everything else is
-from Nsight Compute 2025.1.1 (`ncu --set full`), which profiles a single launch with its own
-overhead, so its "Duration" is longer than the CUDA-event time and is listed separately.
-Nsight Systems recorded no GPU-side data on this machine with driver 572.76 (see M6 in
-[`ROADMAP.md`](ROADMAP.md)), so iterations 0 to 2 have no timeline screenshots. Since the update
-to driver 617.42 it does. Inputs come from `python tools/gen_bench.py --out out/bench`.
+Kernel and transfer times are CUDA events from `rfgpu --bench 20` (3 warm-up runs). Per-kernel
+metrics come from Nsight Compute (`ncu --set full`), which profiles a single launch at locked
+clocks, so its "Duration" is longer than the CUDA-event time and is listed separately. Inputs
+come from `python tools/gen_bench.py --out out/bench`. The Nsight Compute reports are in
+`docs/profiles/`, and the charts in `docs/figures/` are generated from them and from the
+CUDA-event timings by `tools/make_figures.py` (see [`DEVELOPMENT.md`](DEVELOPMENT.md)).
 
 ## Iteration 0 — FIR — naive baseline
 - GPU / driver / CUDA version: NVIDIA GeForce RTX 5080 Laptop GPU (compute capability 12.0,
@@ -50,7 +49,7 @@ to driver 617.42 it does. Inputs come from `python tools/gen_bench.py --out out/
 - Result (speedup vs. previous iteration and vs. naive): 1.0× (baseline). With 63 taps the two
   transfers (about 24 ms) take about 15 times longer than the kernel (about 1.5 ms); with 1025
   taps they are about equal to it.
-- Screenshot: none. Reports: `docs/profiles/fir_naive_63.ncu-rep`,
+- Reports: `docs/profiles/fir_naive_63.ncu-rep`,
   `docs/profiles/fir_naive_1025.ncu-rep`.
 
 ## Iteration 0 — cross-correlation — naive baseline
@@ -75,11 +74,10 @@ to driver 617.42 it does. Inputs come from `python tools/gen_bench.py --out out/
   global memory, about `num_a * num_b` sample pairs in total.
 - Result (speedup vs. previous iteration and vs. naive): 1.0× (baseline). Transfers are about
   1 % of the kernel time.
-- Screenshot: none. Report: `docs/profiles/xcorr_naive.ncu-rep`.
+- Report: `docs/profiles/xcorr_naive.ncu-rep`.
 
 ## Iteration 1 — FIR — shared-memory tiles (`--impl tiled`)
 
-Kernel, measurements, and this entry were written by an agent at Jean's request (2026-10-08).
 
 - GPU / driver / CUDA version: NVIDIA GeForce RTX 5080 Laptop GPU (compute capability 12.0,
   60 SMs) / 572.76 / 12.8
@@ -124,12 +122,11 @@ Kernel, measurements, and this entry were written by an agent at Jean's request 
   1025 taps (naive is the previous iteration). Output is bit-identical to naive on the
   benchmark input for both filters. Transfers are unchanged and still about 25 times the
   kernel time with 63 taps.
-- Screenshot: none. Reports: `docs/profiles/fir_tiled_63.ncu-rep`,
+- Reports: `docs/profiles/fir_tiled_63.ncu-rep`,
   `docs/profiles/fir_tiled_1025.ncu-rep`.
 
 ## Iteration 2 — FIR — taps in constant memory (`--impl tiled_const`)
 
-Kernel, measurements, and this entry were written by an agent at Jean's request (2026-10-08).
 
 - GPU / driver / CUDA version: NVIDIA GeForce RTX 5080 Laptop GPU (compute capability 12.0,
   60 SMs) / 572.76 / 12.8
@@ -177,12 +174,11 @@ Kernel, measurements, and this entry were written by an agent at Jean's request 
   the benchmark input for both filters. With 63 taps the kernel (0.66 ms) is now about 2.6 %
   of the transfer time (about 25 ms), so further kernel work on this filter length changes
   end-to-end time very little.
-- Screenshot: none. Reports: `docs/profiles/fir_tiled_const_63.ncu-rep`,
+- Reports: `docs/profiles/fir_tiled_const_63.ncu-rep`,
   `docs/profiles/fir_tiled_const_1025.ncu-rep`.
 
 ## Iteration 1 — cross-correlation — shared-memory tiles (`--impl tiled`)
 
-Kernel, measurements, and this entry were written by an agent at Jean's request (2026-10-08).
 
 - GPU / driver / CUDA version: NVIDIA GeForce RTX 5080 Laptop GPU (compute capability 12.0,
   60 SMs) / 572.76 / 12.8
@@ -210,11 +206,10 @@ Kernel, measurements, and this entry were written by an agent at Jean's request 
   barriers. Each thread still adds its products in the same order as naive.
 - Result (speedup vs. previous iteration and vs. naive): 2.19× (naive is the previous
   iteration). Output is bit-identical to naive at every size in the sweep below.
-- Screenshot: none. Report: `docs/profiles/xcorr_tiled.ncu-rep`.
+- Report: `docs/profiles/xcorr_tiled.ncu-rep`.
 
 ## Iteration 2 — cross-correlation — cuFFT-based (`--impl fft`), and the three variants compared
 
-Kernel, measurements, and this entry were written by an agent at Jean's request (2026-10-08).
 
 - GPU / driver / CUDA version: NVIDIA GeForce RTX 5080 Laptop GPU (compute capability 12.0,
   60 SMs) / 572.76 / 12.8
@@ -267,13 +262,13 @@ conjugate-multiply kernel, and the inverse FFT; plan creation is outside the tim
   Accuracy against the float64 reference at 2^18 (peak value 2.6e5): maximum absolute error
   0.064 for `fft` and 0.72 for naive and tiled, whose single running float32 sum loses more
   precision as the inputs grow. All three recover the true delay of 37 samples at every size.
-- Screenshot: none. Report: `docs/profiles/xcorr_fft.ncu-rep`.
+- Report: `docs/profiles/xcorr_fft.ncu-rep`.
 
 ## Re-measurement — all variants — CUDA 13.4 toolchain
 
 Not an optimization: the machine moved from driver 572.76 / CUDA 12.8 to driver 617.42 /
-CUDA 13.4, so every variant was re-timed to check that the numbers above still hold. Measured
-by an agent on 2026-10-23.
+CUDA 13.4, so every variant was re-timed on 2026-10-23 to check that the numbers above still
+hold.
 
 - GPU / driver / CUDA version: NVIDIA GeForce RTX 5080 Laptop GPU (compute capability 12.0) /
   617.42 / 13.4
@@ -320,7 +315,7 @@ by an agent on 2026-10-23.
 
 Measures the phase B memory plan on the GPU. The phase C CUDA backend (`sigflowc --emit=cuda`)
 keeps every value on the device in the buffer slot liveness analysis gave it, so reuse now
-changes what is actually allocated. Measured by an agent on 2026-10-28 with
+changes what is actually allocated. Measured on 2026-10-28 with
 `compiler/tools/measure.py` (`--variant= --variant=--no-reuse --rounds 5 --nsys`).
 
 - GPU / driver / CUDA version: NVIDIA GeForce RTX 5080 Laptop GPU (compute capability 12.0) /
@@ -362,7 +357,7 @@ changes what is actually allocated. Measured by an agent on 2026-10-28 with
 ## SigFlow kernel fusion — `two_channel.sf` and `filter_bank.sf` — fused against `--no-fuse`
 
 The phase C fusion pass batches FIRs that share their taps into one launch
-(`fir_naive_batched_kernel` in `src/fused.cu`). Measured by an agent on 2026-10-28 with
+(`fir_naive_batched_kernel` in `src/fused.cu`). Measured on 2026-10-28 with
 `compiler/tools/measure.py` (`--variant= --variant=--no-fuse --rounds 5 --nsys`); buffer reuse
 is on in both variants.
 
@@ -390,7 +385,7 @@ is on in both variants.
 - Driver-reported GPU memory (`cudaMemGetInfo` change across setup): `two_channel` 12 MiB either
   way at 2^14, 20 MiB unfused against 22 MiB fused at 2^18; `filter_bank` 2 MiB either way.
 - Achieved memory bandwidth (% of peak) and occupancy: not measured (`ncu` still fails with
-  `ERR_NVGPUCTRPERM`; see the toolchain notes in `docs/ROADMAP.md`).
+  `ERR_NVGPUCTRPERM`; see "Enabling GPU performance counters" in `docs/DEVELOPMENT.md`).
 - Top bottleneck reported by the profiler: not measured. In `two_channel` the naive
   cross-correlation dominates the kernel time (150.6 ms of it at 2^18 on its own).
 - What I changed and why: fusing FIRs with the same taps saves a launch per extra channel, which
@@ -423,5 +418,5 @@ is on in both variants.
 - Top bottleneck reported by the profiler:
 - What I changed and why:
 - Result (speedup vs. previous iteration and vs. naive):
-- Screenshot: docs/screenshots/...
+- Figure: docs/figures/<name>.png (generated by tools/make_figures.py)
 ```

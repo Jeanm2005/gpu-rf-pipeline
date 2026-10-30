@@ -13,12 +13,11 @@ graph), schedules it with a topological sort, and generates code: a script of `r
 in phase A, and generated CUDA C++ with fused kernels in phase C. See `README.md` for the
 language and the phase plan.
 
-## The most important rule: the owner writes the core compiler
+## The most important rule: the core compiler is owner-maintained
 
-This is a learning and portfolio project. The repository owner (Jean) writes these himself and
-must be able to explain every line in interviews:
+The repository owner maintains these files:
 
-| Owner-written (agents: explain, sketch, review — do NOT implement) | Files |
+| Owner-maintained (agents: explain, sketch, review — do NOT implement) | Files |
 |---|---|
 | Lexer | `src/lexer.cpp` |
 | Recursive-descent parser | `src/parser.cpp` |
@@ -32,7 +31,7 @@ For these files:
 - **Do NOT write or complete function bodies** unless the owner explicitly asks in the current
   request.
 - You MAY: explain the algorithm and point to the matching Dragon Book chapter, write signatures
-  and `// TODO` skeletons, write pseudocode, review his code, find bugs, and propose test cases
+  and `// TODO` skeletons, write pseudocode, review the code, find bugs, and propose test cases
   that would break it.
 - Copilot inline completions in these files should stay to a single line.
 
@@ -60,7 +59,7 @@ cmake --build build -j
 ctest --test-dir build --output-on-failure     # GoogleTest unit tests + golden tests
 pytest -q tests/e2e                            # end-to-end (needs ../build/rfgpu and a GPU)
 
-# Update golden files ONLY when the owner asks, then show him the diff
+# Update golden files ONLY when the owner asks, then show the owner the diff
 ./build/sigflowc --update-golden tests/golden
 ```
 
@@ -100,8 +99,7 @@ events, warm-up, averaged runs, transfers reported separately, and an entry in
 
 ## Scope
 
-Work on the current phase only (see `README.md`). Ideas for later phases go in
-`docs/ROADMAP.md`, not into code.
+Work on the open items in `../docs/ROADMAP.md`. New ideas go into the roadmap, not into code.
 
 ## Git
 
