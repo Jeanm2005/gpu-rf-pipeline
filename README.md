@@ -91,8 +91,16 @@ emit corr -> "out/xcorr.cf32"
 | Graph IR | AST to DAG, dead-node elimination, Kahn scheduling with source-order tie-breaking |
 | Memory planning | Liveness analysis and buffer-slot reuse: 40 % less GPU memory on the program above |
 | Kernel fusion | Batches FIRs that share their taps into one launch |
-| Backends | A script of `rfgpu` commands, or a CUDA program that keeps every value on the GPU |
+| Backends | A script of `rfgpu` commands, or a CUDA program that keeps every value on the GPU, with any kernel variant (`--fir-impl`, `--xcorr-impl`) |
 | Viewer | A TypeScript page that draws the IR before and after each pass |
+
+Compiled with the fastest kernel variants, the program above runs in 1.82 ms per run at 2^18
+samples per channel, against 152 ms with the naive kernels:
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/figures/sigflow_two_channel_bench-dark.png">
+  <img alt="Kernel and end-to-end time per sigflowc variant, two_channel.sf at 2^18 samples per channel" src="docs/figures/sigflow_two_channel_bench.png">
+</picture>
 
 Language reference, compiler design, and measurements: [`compiler/README.md`](compiler/README.md).
 

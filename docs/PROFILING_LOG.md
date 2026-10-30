@@ -321,7 +321,7 @@ hold.
   about 0.1 ms. The speedups in iterations 1 and 2 hold: with the medians above, FIR tiled is
   1.42× (63 taps) and 1.61× (1025 taps) over naive, tiled_const 2.20× and 3.01×, xcorr tiled
   2.17×.
-- Screenshot: none.
+- Data: printed by `compiler/tools/measure.py`; numbers as above.
 
 ## SigFlow buffer reuse — `two_channel.sf` — CUDA backend, reuse against `--no-reuse`
 
@@ -364,7 +364,7 @@ changes what is actually allocated. Measured on 2026-10-28 with
   pages. At 2^14 the whole program fits in the same 2 MiB pages either way, so the driver shows
   no difference. Kernel and transfer times do not change beyond the round-to-round spread.
   `cufftGetSize` reported a 0-byte work area for this plan.
-- Screenshot: none.
+- Data: printed by `compiler/tools/measure.py`; numbers as above.
 
 ## SigFlow kernel fusion — `two_channel.sf` and `filter_bank.sf` — fused against `--no-fuse`
 
@@ -417,7 +417,60 @@ is on in both variants.
     shows up as 2 MiB more driver-reported memory.
   - Negative result, kept on purpose: for this program, fusion buys a launch and costs memory.
     It pays off when many short kernels share their taps, as in `filter_bank`.
-- Screenshot: none.
+- Data: printed by `compiler/tools/measure.py`; numbers as above.
+
+## SigFlow kernel selection — `two_channel.sf` — naive against the fastest variants
+
+`sigflowc --fir-impl=tiled_const --xcorr-impl=fft` makes the CUDA backend use the fastest FIR
+and cross-correlation variants (fusion groups use the batched constant-memory FIR). Measured
+on 2026-10-30 with `compiler/tools/measure.py`, four variants per input size, five interleaved
+rounds of `--bench 20 --warmup 3`, with Nsight Systems kernel counts. Results are in
+`docs/results/sigflow_two_channel_*.json`.
+
+- GPU / driver / CUDA version: NVIDIA GeForce RTX 5080 Laptop GPU (compute capability 12.0) /
+  617.42 / 13.4
+- Input size and parameters: `compiler/examples/two_channel.sf` on the fixtures (2^14 samples
+  per channel) and on `bench_ch0` / `bench_ch1` (2^18). Buffer reuse on. End to end is the
+  sum of the median upload, kernel, and download times.
+
+| Variant, 2^18 per channel | Launches (program / Nsight) | Kernel time | End to end | Allocated GPU memory |
+|---|---|---|---|---|
+| naive, fused | 4 / 4 | 149.4 ms (148.6 to 150.3) | 152.2 ms | 10,486,004 bytes |
+| naive, `--no-fuse` | 5 / 5 | 149.7 ms (148.7 to 151.2) | 152.4 ms | 9,437,428 bytes |
+| fast, `--no-fuse` | 8 / 11 | 0.350 ms (0.290 to 0.375) | 1.84 ms | 30,408,948 bytes |
+| fast, fused | 7 / 10 | 0.303 ms (0.242 to 0.348) | 1.82 ms | 31,457,524 bytes |
+
+| Variant, 2^14 per channel | Launches (program / Nsight) | Kernel time | End to end | Allocated GPU memory |
+|---|---|---|---|---|
+| naive, fused | 4 / 4 | 0.838 ms (0.751 to 0.856) | 1.30 ms | 655,604 bytes |
+| naive, `--no-fuse` | 5 / 5 | 0.779 ms (0.751 to 0.862) | 1.15 ms | 590,068 bytes |
+| fast, `--no-fuse` | 8 / 11 | 0.274 ms (0.240 to 0.385) | 0.64 ms | 1,900,788 bytes |
+| fast, fused | 7 / 10 | 0.292 ms (0.241 to 0.327) | 0.63 ms | 1,966,324 bytes |
+
+![Kernel and end-to-end time per variant, 2^18 samples per channel](figures/sigflow_two_channel_bench.png)
+
+- Launches: the program counts its own calls; the FFT cross-correlation is three cuFFT calls and
+  one conjugate-multiply kernel. Nsight Systems records three more GPU kernels than the program
+  counts in the fast variants, because cuFFT runs some transforms as more than one kernel.
+- Transfer time: at 2^18, upload 0.85 to 0.89 ms with the naive kernels and 0.48 ms with the
+  fast ones; download 1.92 against 1.02 to 1.03 ms. The copies are identical in every variant,
+  so the difference comes from the GPU's state after a long kernel phase rather than from the
+  copies themselves. At 2^14 the uploads and downloads take 0.16 to 0.25 ms in every variant.
+- Achieved memory bandwidth (% of peak) and occupancy: per kernel in the entries above; not
+  measured again here.
+- Top bottleneck: with the fast kernels, transfers are 83 % of end-to-end time at 2^18.
+- What I changed and why: the CUDA backend could only call the naive kernels, so the naive
+  cross-correlation hid everything else in `two_channel.sf`.
+- Result:
+  - At 2^18 samples per channel, the fast kernels make the kernel phase 494× faster
+    (149.4 to 0.303 ms, fused) and end-to-end time 84× faster (152.2 to 1.82 ms).
+  - They cost memory: 31.5 MB allocated against 10.5 MB, mostly the FFT cross-correlation's four
+    padded work buffers of 2^19 complex samples each.
+  - Fusion with the fast kernels: kernel time 0.350 ms unfused against 0.303 ms fused at 2^18,
+    one launch fewer. The ranges overlap (0.290 to 0.375 against 0.242 to 0.348), so the
+    13 % gain is likely but not established; at 2^14 there is no difference.
+  - With the kernels this fast, the next gains are in transfers: the streaming item on the
+    roadmap.
 
 ## Entry template
 

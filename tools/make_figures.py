@@ -257,28 +257,34 @@ def plot_ncu(plt, theme_name: str, metrics: list[dict]) -> None:
 
 
 def plot_sigflow(plt, theme_name: str, summary: dict) -> None:
-    """End-to-end time for each sigflowc variant, split into upload, kernels, and download."""
+    """Kernel time and end-to-end time (upload + kernels + download) for each sigflowc variant.
+    The variants span two orders of magnitude, so the axis is logarithmic and values are dots
+    (a bar on a log axis has no zero to start from)."""
+    from matplotlib.ticker import FuncFormatter
+
     theme = THEMES[theme_name]
     variants = summary["variants"]
-    fig, ax = plt.subplots(figsize=(9.6, 0.6 + 0.55 * len(variants)), facecolor=theme["surface"])
+    fig, ax = plt.subplots(figsize=(9.6, 0.9 + 0.62 * len(variants)), facecolor=theme["surface"])
     ys = list(range(len(variants)))[::-1]
-    parts = (("h2d_ms", "upload"), ("kernel_ms", "kernels"), ("d2h_ms", "download"))
-    left = [0.0] * len(variants)
-    for (key, name), color in zip(parts, theme["series"]):
-        values = [v[key] for v in variants]
-        # Segments separated by a thin surface-colored edge (the 2 px gap between fills).
-        ax.barh(ys, values, left=left, height=0.56, color=color, label=name,
-                edgecolor=theme["surface"], linewidth=1.5, zorder=2)
-        left = [a + b for a, b in zip(left, values)]
-    for y, total, v in zip(ys, left, variants):
-        ax.text(total + max(left) * 0.01, y, f"{total:.3g} ms  ·  {v['launches']} launches",
-                va="center", ha="left", color=theme["text"], fontsize=9)
-    ax.set_yticks(ys, [v["label"] for v in variants], color=theme["text"], fontsize=9)
-    ax.set_xlim(0, max(left) * 1.35)
-    ax.set_xlabel("end-to-end time per pipeline run (ms, median of 5 rounds)",
+    totals = [v["h2d_ms"] + v["kernel_ms"] + v["d2h_ms"] for v in variants]
+    kernels = [v["kernel_ms"] for v in variants]
+    for values, name, color, offset in ((totals, "end to end", theme["series"][0], 0.12),
+                                        (kernels, "kernels only", theme["series"][1], -0.12)):
+        ax.scatter(values, [y + offset for y in ys], s=64, color=color, label=name, zorder=3)
+        for y, value in zip(ys, values):
+            ax.text(value * 1.25, y + offset, f"{value:.3g} ms", va="center", ha="left",
+                    color=theme["text"], fontsize=8)
+    ax.set_xscale("log")
+    ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x:g}"))
+    ax.set_xlim(min(kernels) / 2.5, max(totals) * 6)
+    ax.set_ylim(-0.6, len(variants) - 0.4)
+    labels = [f"{v['label']}  ({v['launches']} launches)" for v in variants]
+    ax.set_yticks(ys, labels, color=theme["text"], fontsize=9)
+    ax.set_xlabel("ms per pipeline run, log scale (medians of "
+                  f"{summary['rounds']} rounds; end to end = upload + kernels + download)",
                   color=theme["muted"], fontsize=9)
     style_axes(ax, theme)
-    legend = ax.legend(loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=3, frameon=False,
+    legend = ax.legend(loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=2, frameon=False,
                        fontsize=9)
     for text in legend.get_texts():
         text.set_color(theme["text"])

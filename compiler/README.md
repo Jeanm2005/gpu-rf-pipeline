@@ -154,6 +154,16 @@ Details, ranges, and the driver-reported memory are in `../docs/PROFILING_LOG.md
 | `two_channel.sf`, 2^18 samples per channel | 5 → 4 | 15,728,884 → 9,437,428 bytes unfused; 10,486,004 fused with reuse | 218.7 → 217.3 ms (within noise) |
 | `filter_bank.sf`, fixtures | 3 → 1 | 225,900 bytes unfused, 226,012 fused (both with reuse) | 0.612 → 0.767 ms (transfer noise); kernel phase 0.054 → 0.018 ms |
 
+With the fastest kernels (`--fir-impl=tiled_const --xcorr-impl=fft`), `two_channel.sf` at 2^18
+samples per channel runs in 1.82 ms end to end instead of 152.2 ms (84×), and the kernel phase
+in 0.303 ms instead of 149.4 ms (494×), at the cost of 31.5 MB of GPU memory instead of
+10.5 MB for the FFT work buffers. Transfers are then 83 % of the time.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../docs/figures/sigflow_two_channel_bench-dark.png">
+  <img alt="Kernel and end-to-end time per variant, two_channel.sf at 2^18 samples per channel" src="../docs/figures/sigflow_two_channel_bench.png">
+</picture>
+
 Reuse saves 40 % of `two_channel`'s memory. Fusion removes a launch there but no measurable
 time, since the naive cross-correlation dominates, and gives 11 % of the memory back, because
 two FIRs in one launch can't hand a buffer from one to the other. Where kernels are tiny and

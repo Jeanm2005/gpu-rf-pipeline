@@ -1,0 +1,100 @@
+{
+  "title": "two_channel.sf, 2^18 samples per channel: time per pipeline run",
+  "figure": "sigflow_two_channel_bench",
+  "program": "two_channel.sf",
+  "inputs": "bench",
+  "gpu": "NVIDIA GeForce RTX 5080 Laptop GPU",
+  "rounds": 5,
+  "bench": 20,
+  "warmup": 3,
+  "variants": [
+    {
+      "label": "naive kernels, fused",
+      "flags": "",
+      "launches": 4,
+      "nsys_gpu_kernels": 4,
+      "allocated_bytes": 10486004,
+      "h2d_ms": 0.885125,
+      "kernel_ms": 149.3896,
+      "d2h_ms": 1.919952,
+      "h2d_ms_range": [
+        0.86801,
+        0.947877
+      ],
+      "kernel_ms_range": [
+        148.603923,
+        150.346719
+      ],
+      "d2h_ms_range": [
+        1.797576,
+        1.964325
+      ]
+    },
+    {
+      "label": "naive kernels, unfused",
+      "flags": "--no-fuse",
+      "launches": 5,
+      "nsys_gpu_kernels": 5,
+      "allocated_bytes": 9437428,
+      "h2d_ms": 0.850371,
+      "kernel_ms": 149.662737,
+      "d2h_ms": 1.923309,
+      "h2d_ms_range": [
+        0.812754,
+        0.921557
+      ],
+      "kernel_ms_range": [
+        148.735426,
+        151.197347
+      ],
+      "d2h_ms_range": [
+        1.805701,
+        1.983253
+      ]
+    },
+    {
+      "label": "fast kernels, unfused",
+      "flags": "--fir-impl=tiled_const --xcorr-impl=fft --no-fuse",
+      "launches": 8,
+      "nsys_gpu_kernels": 11,
+      "allocated_bytes": 30408948,
+      "h2d_ms": 0.477202,
+      "kernel_ms": 0.350064,
+      "d2h_ms": 1.015451,
+      "h2d_ms_range": [
+        0.411173,
+        0.489896
+      ],
+      "kernel_ms_range": [
+        0.290061,
+        0.374786
+      ],
+      "d2h_ms_range": [
+        0.935814,
+        1.248344
+      ]
+    },
+    {
+      "label": "fast kernels, fused",
+      "flags": "--fir-impl=tiled_const --xcorr-impl=fft",
+      "launches": 7,
+      "nsys_gpu_kernels": 10,
+      "allocated_bytes": 31457524,
+      "h2d_ms": 0.485138,
+      "kernel_ms": 0.302608,
+      "d2h_ms": 1.033318,
+      "h2d_ms_range": [
+        0.396016,
+        0.523696
+      ],
+      "kernel_ms_range": [
+        0.242155,
+        0.348038
+      ],
+      "d2h_ms_range": [
+        0.80635,
+        1.214501
+      ]
+    }
+  ]
+}

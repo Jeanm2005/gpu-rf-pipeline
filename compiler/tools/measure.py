@@ -93,8 +93,15 @@ def main() -> None:
         "RFGPU_BUILD", str(ROOT / "build")))
     parser.add_argument("--nsys", nargs="?", const="nsys", default=None,
                         help="also count GPU kernels with Nsight Systems (optional: its path)")
+    parser.add_argument("--label", action="append", default=[],
+                        help="a name for each --variant, in order, for --json-out")
+    parser.add_argument("--json-out", type=Path, default=None,
+                        help="also write a summary for tools/make_figures.py, e.g. "
+                             "docs/results/sigflow_two_channel.json")
+    parser.add_argument("--title", default=None, help="chart title for --json-out")
     args = parser.parse_args()
     variants = args.variant or [""]
+    labels = args.label + [flags or "default" for flags in variants[len(args.label):]]
 
     with tempfile.TemporaryDirectory() as tmp:
         workdir = Path(tmp)
@@ -119,8 +126,20 @@ def main() -> None:
 
     print(f"program: {args.program}, inputs: {args.inputs}, {args.rounds} rounds of "
           f"--bench {args.bench} --warmup {args.warmup}; times are median (range) of round means")
-    for flags, rounds, gpu_kernels in zip(variants, reports, kernels):
+    summary = []
+    for flags, label, rounds, gpu_kernels in zip(variants, labels, reports, kernels):
         first = rounds[0]
+        summary.append({
+            "label": label,
+            "flags": flags,
+            "launches": first["launches"],
+            "nsys_gpu_kernels": gpu_kernels,
+            "allocated_bytes": first["allocated_bytes"],
+            **{key: statistics.median(r[key] for r in rounds)
+               for key in ("h2d_ms", "kernel_ms", "d2h_ms")},
+            **{f"{key}_range": [min(r[key] for r in rounds), max(r[key] for r in rounds)]
+               for key in ("h2d_ms", "kernel_ms", "d2h_ms")},
+        })
         print(json.dumps({
             "flags": flags,
             "gpu": first["gpu"],
@@ -140,6 +159,21 @@ def main() -> None:
             "total_ms_median": round(statistics.median(
                 r["h2d_ms"] + r["kernel_ms"] + r["d2h_ms"] for r in rounds), 4),
         }))
+
+    if args.json_out:
+        # The input of tools/make_figures.py plot: one chart per file.
+        args.json_out.write_text(json.dumps({
+            "title": args.title or f"{args.program.name}, {args.inputs} inputs: time per run",
+            "figure": args.json_out.stem,
+            "program": args.program.name,
+            "inputs": args.inputs,
+            "gpu": reports[0][0]["gpu"],
+            "rounds": args.rounds,
+            "bench": args.bench,
+            "warmup": args.warmup,
+            "variants": summary,
+        }, indent=2) + "\n")
+        print(f"wrote {args.json_out}")
 
 
 if __name__ == "__main__":
