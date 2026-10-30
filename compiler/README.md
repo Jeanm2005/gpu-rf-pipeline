@@ -120,6 +120,9 @@ tools/build_cuda.sh out/run.cu out/run   # links ../build/librfgpu_ops.a
 out/run --bench 20 --warmup 3            # same outputs, plus a JSON report of launches,
                                          # GPU memory, and phase times
 
+# Kernel variants, as rfgpu names them (both backends; naive by default)
+./build/sigflowc examples/two_channel.sf --emit=cuda --fir-impl=tiled_const --xcorr-impl=fft     -o out/run_fast.cu
+
 ctest --test-dir build --output-on-failure
 pytest -q tests/e2e
 ```
@@ -132,7 +135,8 @@ pytest -q tests/e2e
 - **Golden tests:** each `tests/golden/*.sf` has an expected `--emit` output or expected
   diagnostics, compared exactly.
 - **End-to-end tests** (pytest, `tests/e2e/`): every program in `examples/` is compiled for
-  both backends, by default and with `--no-reuse` and `--no-fuse`, run on the fixtures, and
+  both backends, by default, with `--no-reuse` and `--no-fuse`, and with the tiled and fastest
+  kernel variants (`--fir-impl`, `--xcorr-impl`), run on the fixtures, and
   every emitted file is compared to the NumPy/SciPy reference from `../tools/reference.py`,
   evaluated on the same IR (`--emit=json`). Needs `../build/rfgpu` and a GPU; skips otherwise.
   `SIGFLOWC_BIN` and `RFGPU_BIN` point it at other builds.

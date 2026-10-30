@@ -4,6 +4,8 @@
 // requested --emit output. Kept apart from src/main.cpp so that --update-golden can run it
 // in-process with both streams captured.
 
+#include "sigflow/kernels.hpp"
+
 #include <ostream>
 #include <string>
 #include <vector>
@@ -32,6 +34,7 @@ struct Options {
     bool reuse = true;  // buffer reuse after liveness analysis; --no-reuse turns it off
     // --input-dir=DIR: where capture paths resolve when sizing buffers for --emit=liveness.
     std::string input_dir = ".";
+    KernelChoice kernels;  // --fir-impl / --xcorr-impl
 };
 
 // Exit codes shared by the driver and src/main.cpp.

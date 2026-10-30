@@ -7,6 +7,7 @@
 // path.
 
 #include "sigflow/ir.hpp"
+#include "sigflow/kernels.hpp"
 #include "sigflow/liveness.hpp"
 #include "sigflow/passes.hpp"
 
@@ -16,8 +17,10 @@
 namespace sigflow {
 
 // `program_name` only appears in the header comment. The script runs `$RFGPU` (default:
-// `rfgpu` on PATH), and relative paths resolve against the directory it is run from.
+// `rfgpu` on PATH), and relative paths resolve against the directory it is run from. FIR and
+// cross-correlation commands get `--impl` for any variant in `kernels` other than naive.
 void emit_script(const Graph& graph, const Schedule& schedule, const Liveness& liveness,
-                 const std::string& program_name, std::ostream& out);
+                 const KernelChoice& kernels, const std::string& program_name,
+                 std::ostream& out);
 
 }  // namespace sigflow

@@ -10,6 +10,7 @@
 // what makes buffer reuse and kernel fusion measurable.
 
 #include "sigflow/ir.hpp"
+#include "sigflow/kernels.hpp"
 #include "sigflow/liveness.hpp"
 #include "sigflow/passes.hpp"
 
@@ -18,9 +19,10 @@
 
 namespace sigflow {
 
-// `program_name` names the program in its header comment and its report; `reuse` is recorded in
-// the report so measurements say which plan they ran.
+// `program_name` names the program in its header comment and its report; `reuse` and the
+// kernel variants in `kernels` are recorded in the report so measurements say what they ran.
 void emit_cuda(const Graph& graph, const Schedule& schedule, const Liveness& liveness,
-               const std::string& program_name, bool reuse, std::ostream& out);
+               const KernelChoice& kernels, const std::string& program_name, bool reuse,
+               std::ostream& out);
 
 }  // namespace sigflow

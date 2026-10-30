@@ -30,6 +30,12 @@ std::string value_path(const Liveness& liveness, const Node& node)
     return "\"$WORK/b" + std::to_string(slot) + "\"";
 }
 
+// " --impl NAME", or nothing for rfgpu's default (naive).
+std::string impl_flag(const std::string& impl)
+{
+    return impl == "naive" ? "" : " --impl " + impl;
+}
+
 std::string parent_directory(const std::string& path)
 {
     const std::size_t slash = path.find_last_of('/');
@@ -39,7 +45,8 @@ std::string parent_directory(const std::string& path)
 }  // namespace
 
 void emit_script(const Graph& graph, const Schedule& schedule, const Liveness& liveness,
-                 const std::string& program_name, std::ostream& out)
+                 const KernelChoice& kernels, const std::string& program_name,
+                 std::ostream& out)
 {
     // Path of a node's i-th input.
     const auto input = [&](const Node& node, std::size_t i) {
@@ -69,7 +76,7 @@ void emit_script(const Graph& graph, const Schedule& schedule, const Liveness& l
             break;
         case Op::Fir:
             out << "\"$RFGPU\" fir --in " << input(node, 0) << " --taps " << quote(node.taps)
-                << " --out " << result << "\n";
+                << " --out " << result << impl_flag(kernels.fir) << "\n";
             break;
         case Op::Fft:
             out << "\"$RFGPU\" spectrum --in " << input(node, 0) << " --nfft " << node.n
@@ -80,7 +87,7 @@ void emit_script(const Graph& graph, const Schedule& schedule, const Liveness& l
             break;
         case Op::Xcorr:
             out << "\"$RFGPU\" xcorr --a " << input(node, 0) << " --b " << input(node, 1)
-                << " --out " << result << "\n";
+                << " --out " << result << impl_flag(kernels.xcorr) << "\n";
             break;
         case Op::Emit: {
             const std::string directory = parent_directory(node.path);

@@ -100,9 +100,23 @@ std::vector<std::string> golden_args(const std::string& first_line)
     return args;
 }
 
+// parse_options without the --help hint: false after printing the first error.
+bool parse_flags(const std::vector<std::string>& args, Options& options, std::ostream& err);
+
 }  // namespace
 
 bool parse_options(const std::vector<std::string>& args, Options& options, std::ostream& err)
+{
+    if (parse_flags(args, options, err)) {
+        return true;
+    }
+    err << "sigflowc: run 'sigflowc --help' for usage\n";
+    return false;
+}
+
+namespace {
+
+bool parse_flags(const std::vector<std::string>& args, Options& options, std::ostream& err)
 {
     bool have_input = false;
     for (std::size_t i = 0; i < args.size(); ++i) {
@@ -126,6 +140,21 @@ bool parse_options(const std::vector<std::string>& args, Options& options, std::
             options.fuse = false;
         } else if (arg == "--no-reuse") {
             options.reuse = false;
+        } else if (arg.compare(0, 11, "--fir-impl=") == 0
+                   || arg.compare(0, 13, "--xcorr-impl=") == 0) {
+            const bool fir = arg[2] == 'f';
+            const std::string value = arg.substr(fir ? 11 : 13);
+            const std::vector<std::string>& names = fir ? fir_impl_names() : xcorr_impl_names();
+            if (std::find(names.begin(), names.end(), value) == names.end()) {
+                std::string known;
+                for (const std::string& name : names) {
+                    known += (known.empty() ? "" : ", ") + name;
+                }
+                err << "sigflowc: error: unknown " << (fir ? "--fir-impl" : "--xcorr-impl")
+                    << " '" << value << "' (available: " << known << ")\n";
+                return false;
+            }
+            (fir ? options.kernels.fir : options.kernels.xcorr) = value;
         } else if (arg.compare(0, 12, "--input-dir=") == 0) {
             options.input_dir = arg.substr(12);
         } else if (!arg.empty() && arg[0] == '-') {
@@ -149,6 +178,8 @@ bool parse_options(const std::vector<std::string>& args, Options& options, std::
     }
     return true;
 }
+
+}  // namespace
 
 int compile(const Options& options, std::ostream& out, std::ostream& err)
 {
@@ -235,10 +266,11 @@ int compile(const Options& options, std::ostream& out, std::ostream& err)
                    value_bytes(graph, options.input_dir), out);
         break;
     case EmitMode::Script:
-        emit_script(graph, order, liveness, options.display_path, out);
+        emit_script(graph, order, liveness, options.kernels, options.display_path, out);
         break;
     case EmitMode::Cuda:
-        emit_cuda(graph, order, liveness, options.display_path, options.reuse, out);
+        emit_cuda(graph, order, liveness, options.kernels, options.display_path, options.reuse,
+                  out);
         break;
     case EmitMode::Schedule:
         for (std::size_t step = 0; step < order.order.size(); ++step) {

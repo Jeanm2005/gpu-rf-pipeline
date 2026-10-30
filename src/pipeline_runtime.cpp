@@ -59,8 +59,9 @@ std::string json_counts(const std::map<std::string, int>& counts, int& total)
 
 }  // namespace
 
-Runtime::Runtime(const char* program, bool fused, bool reuse, int argc, char** argv)
-    : program_(program), fused_(fused), reuse_(reuse)
+Runtime::Runtime(const char* program, const char* kernels, bool fused, bool reuse, int argc,
+                 char** argv)
+    : program_(program), kernels_(kernels), fused_(fused), reuse_(reuse)
 {
     config_.runs = int_flag(argc, argv, "--bench", 1, 1);
     config_.warmup = int_flag(argc, argv, "--warmup", 0, 0);
@@ -166,14 +167,15 @@ void Runtime::report() const
 
     const BenchResult& r = result_;
     std::printf(
-        "{\"program\": \"%s\", \"fused\": %s, \"reuse\": %s, \"gpu\": \"%s\", "
+        "{\"program\": \"%s\", \"kernels\": \"%s\", \"fused\": %s, \"reuse\": %s, \"gpu\": \"%s\", "
         "\"launches\": %d, \"launches_by_kind\": %s, "
         "\"slots\": %zu, \"slot_bytes\": %zu, \"taps_bytes\": %zu, \"fft_work_bytes\": %zu, "
         "\"allocated_bytes\": %zu, \"device_used_delta_bytes\": %zu, "
         "\"runs\": %d, \"warmup\": %d, "
         "\"h2d_ms\": %.6f, \"h2d_std_ms\": %.6f, \"kernel_ms\": %.6f, \"kernel_std_ms\": %.6f, "
         "\"d2h_ms\": %.6f, \"d2h_std_ms\": %.6f}\n",
-        program_.c_str(), fused_ ? "true" : "false", reuse_ ? "true" : "false", prop.name,
+        program_.c_str(), kernels_.c_str(), fused_ ? "true" : "false",
+        reuse_ ? "true" : "false", prop.name,
         launches, counts.c_str(), slot_bytes_.size(), slots_total, taps_bytes_,
         fft_work_bytes_, slots_total + taps_bytes_ + fft_work_bytes_,
         used_after_ > used_before_ ? used_after_ - used_before_ : 0, config_.runs,

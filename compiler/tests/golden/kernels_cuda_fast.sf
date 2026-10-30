@@ -1,0 +1,8 @@
+# args: --emit=cuda --fir-impl=tiled_const --xcorr-impl=fft
+# The fastest variants: a batched constant-memory FIR and the cuFFT cross-correlation.
+a    = capture("fixtures/ch0.cf32", rate=1e6)
+b    = capture("fixtures/ch1.cf32", rate=1e6)
+la   = a |> fir(taps="fixtures/lowpass.f32")
+lb   = b |> fir(taps="fixtures/lowpass.f32")
+corr = xcorr(la, lb)
+emit corr -> "out/xcorr.cf32"

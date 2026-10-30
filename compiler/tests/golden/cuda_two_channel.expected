@@ -10,7 +10,7 @@
 
 int main(int argc, char** argv)
 try {
-    sigflow::Runtime rt("cuda_two_channel.sf", true, true, argc, argv);
+    sigflow::Runtime rt("cuda_two_channel.sf", "fir=naive xcorr=naive", true, true, argc, argv);
 
     // Captures, read once.
     const std::vector<cf32> h0 = rt.read_capture("fixtures/ch0.cf32");  // %0 = capture "fixtures/ch0.cf32" : stream<cf32> @2.4e6   # a

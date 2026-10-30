@@ -21,6 +21,7 @@ void print_usage(std::ostream& out)
 {
     out << "usage:\n"
            "  sigflowc PROGRAM.sf [--emit=MODE] [-o FILE] [--no-dce] [--no-fuse] [--no-reuse]\n"
+           "                      [--fir-impl=V] [--xcorr-impl=V]\n"
            "  sigflowc --update-golden DIR    regenerate DIR/*.expected from DIR/*.sf\n"
            "\n"
            "--emit modes:\n"
@@ -42,6 +43,10 @@ void print_usage(std::ostream& out)
            "  --no-dce    keep nodes that no emit depends on\n"
            "  --no-fuse   launch each FIR on its own instead of batching same-taps FIRs\n"
            "  --no-reuse  give every value its own buffer instead of reusing dead ones\n"
+           "\n"
+           "kernels (script and cuda backends; default naive, as in rfgpu):\n"
+           "  --fir-impl=naive|tiled|tiled_const\n"
+           "  --xcorr-impl=naive|tiled|fft\n"
            "\n"
            "--input-dir=DIR   resolve capture paths against DIR when sizing buffers for\n"
            "                  --emit=liveness (default: the current directory)\n";
@@ -89,8 +94,7 @@ int main(int argc, char** argv)
 
     sigflow::Options options;
     if (!sigflow::parse_options(args, options, std::cerr)) {
-        print_usage(std::cerr);
-        return sigflow::kExitUsage;
+        return sigflow::kExitUsage;  // parse_options printed the error and a --help hint
     }
     if (options.output_path.empty()) {
         return sigflow::compile(options, std::cout, std::cerr);

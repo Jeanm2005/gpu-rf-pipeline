@@ -36,10 +36,8 @@ Open items:
 | B: memory planning and viewer | Liveness analysis and buffer reuse (−40 % GPU memory on `two_channel.sf`, measured), TypeScript DAG viewer |
 | C: fusion and CUDA backend | Horizontal fusion of FIRs that share taps, a CUDA backend that keeps every value on the GPU, batched FIR kernel, fused vs. unfused measurements |
 
-Open items:
-
-- [ ] Kernel selection in the CUDA backend (`--fir-impl`, `--xcorr-impl`), so generated
-      programs can use the optimized variants rather than only the naive kernels.
+Kernel selection (`--fir-impl`, `--xcorr-impl`) lets both backends use any kernel variant,
+including batched versions of every FIR variant for fusion groups.
 
 ## Stage 3: Extensions
 

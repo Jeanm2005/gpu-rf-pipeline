@@ -37,9 +37,11 @@ inline std::size_t padded_to_frames(std::size_t n, int nfft)
 
 class Runtime {
 public:
-    // `program` names the source in the report. Parses --bench / --warmup, creates the CUDA
-    // context, and records how much GPU memory was in use before the program allocated any.
-    Runtime(const char* program, bool fused, bool reuse, int argc, char** argv);
+    // `program` names the source in the report, and `kernels` the variants it was compiled
+    // for ("fir=naive xcorr=fft"). Parses --bench / --warmup, creates the CUDA context, and
+    // records how much GPU memory was in use before the program allocated any.
+    Runtime(const char* program, const char* kernels, bool fused, bool reuse, int argc,
+            char** argv);
 
     // --- setup -----------------------------------------------------------------------------
 
@@ -90,6 +92,7 @@ public:
 
 private:
     std::string program_;
+    std::string kernels_;
     bool fused_;
     bool reuse_;
     BenchConfig config_;

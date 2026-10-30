@@ -123,10 +123,17 @@ def compile_and_run(example: Path, workdir: Path, *flags: str, backend: str = "s
 # Both backends, by default and with buffer reuse or kernel fusion turned off. With reuse, a
 # later value overwrites a dead value's buffer (a work file in the script, a GPU buffer in the
 # CUDA program), so a liveness bug that frees a buffer too early shows up here as a wrong output.
-# In the CUDA program a fusion group runs as one batched launch (src/fused.cu), checked here
-# against the same reference as the separate launches of --no-fuse.
-@pytest.mark.parametrize("flags", [(), ("--no-reuse",), ("--no-fuse",)],
-                         ids=["default", "no_reuse", "no_fuse"])
+# In the CUDA program a fusion group runs as one batched launch, checked here against the same
+# reference as the separate launches of --no-fuse, and every kernel variant is covered through
+# --fir-impl and --xcorr-impl.
+@pytest.mark.parametrize("flags", [
+    (),
+    ("--no-reuse",),
+    ("--no-fuse",),
+    ("--fir-impl=tiled", "--xcorr-impl=tiled"),
+    ("--fir-impl=tiled_const", "--xcorr-impl=fft"),
+    ("--fir-impl=tiled_const", "--xcorr-impl=fft", "--no-fuse"),
+], ids=["default", "no_reuse", "no_fuse", "tiled", "fast", "fast_no_fuse"])
 @pytest.mark.parametrize("backend", ["script", "cuda"])
 @pytest.mark.parametrize("example", EXAMPLES, ids=[e.stem for e in EXAMPLES])
 def test_example_matches_reference(tmp_path: Path, example: Path, backend: str,
