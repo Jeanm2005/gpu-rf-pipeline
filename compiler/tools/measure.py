@@ -9,7 +9,8 @@ with their range, following the measurement rules in AGENTS.md.
 
 With --nsys, each variant also runs once under Nsight Systems, and the number of GPU kernels it
 recorded for one pipeline run is reported: the launch count as the GPU saw it, cuFFT's internal
-kernels included, rather than as the program counted its own calls.
+kernels included, rather than as the program counted its own calls. With --ncu-out DIR, each
+variant also runs once under Nsight Compute, writing DIR/LABEL.ncu-repz.
 
 Inputs: --inputs fixtures runs on tests/fixtures. --inputs bench runs on the large files from
 tools/gen_bench.py (out/bench by default): the program's fixtures/ch0.cf32, ch1.cf32, and
@@ -34,6 +35,12 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+# tools/profile_kernels.sh's sections: --set full without PM sampling and tensor-core charts.
+NCU_SECTIONS = ["ComputeWorkloadAnalysis", "InstructionStats", "LaunchStats",
+                "MemoryWorkloadAnalysis", "MemoryWorkloadAnalysis_Chart",
+                "MemoryWorkloadAnalysis_Tables", "Occupancy", "SchedulerStats", "SourceCounters",
+                "SpeedOfLight", "SpeedOfLight_RooflineChart", "WarpStateStats",
+                "WorkloadDistribution"]
 BENCH_NAMES = {"ch0.cf32": "bench_ch0.cf32", "ch1.cf32": "bench_ch1.cf32",
                "tone.cf32": "bench_tone.cf32"}
 
@@ -93,6 +100,10 @@ def main() -> None:
         "RFGPU_BUILD", str(ROOT / "build")))
     parser.add_argument("--nsys", nargs="?", const="nsys", default=None,
                         help="also count GPU kernels with Nsight Systems (optional: its path)")
+    parser.add_argument("--ncu-out", type=Path, default=None,
+                        help="also profile one run of each variant with Nsight Compute, "
+                             "writing DIR/LABEL.ncu-repz")
+    parser.add_argument("--ncu", default="ncu", help="Nsight Compute binary for --ncu-out")
     parser.add_argument("--label", action="append", default=[],
                         help="a name for each --variant, in order, for --json-out")
     parser.add_argument("--json-out", type=Path, default=None,
@@ -123,6 +134,14 @@ def main() -> None:
                            str(args.warmup)], cwd=workdir)
                 reports[index].append(json.loads(out.strip().splitlines()[-1]))
         kernels = [nsys_kernels(b, workdir, args.nsys) if args.nsys else None for b in binaries]
+        if args.ncu_out:
+            args.ncu_out.mkdir(parents=True, exist_ok=True)
+            for binary, label in zip(binaries, labels):
+                report = args.ncu_out.resolve() / label
+                sections = [arg for name in NCU_SECTIONS for arg in ("--section", name)]
+                run([args.ncu, *sections, "--force-overwrite", "-o", str(report),
+                     str(binary), "--bench", "1", "--warmup", "0"], cwd=workdir)
+                print(f"wrote {report}.ncu-repz")
 
     print(f"program: {args.program}, inputs: {args.inputs}, {args.rounds} rounds of "
           f"--bench {args.bench} --warmup {args.warmup}; times are median (range) of round means")

@@ -7,7 +7,7 @@
 
 The data files are committed, so `plot` reproduces every figure without profiling again:
 
-  docs/results/ncu_metrics.csv     per-kernel Nsight Compute metrics from docs/profiles/*.ncu-rep
+  docs/results/ncu_metrics.csv     per-kernel Nsight Compute metrics from docs/profiles/*.ncu-repz
   docs/results/rfgpu_times.csv     CUDA-event times for every rfgpu variant, one row per round
   docs/results/sigflow_*.json      compiler/tools/measure.py summaries (--json-out)
 
@@ -65,7 +65,7 @@ def run(args: list[str]) -> str:
 
 def collect_ncu(ncu: str) -> None:
     rows = []
-    for report in sorted(PROFILES.glob("*.ncu-rep")):
+    for report in sorted(PROFILES.glob("*.ncu-repz")):
         out = run([ncu, "--import", str(report), "--csv", "--page", "raw",
                    "--metrics", ",".join(NCU_METRICS.values())])
         lines = out.splitlines()

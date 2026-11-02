@@ -52,9 +52,10 @@ CI runs every suite that does not need a GPU.
 - **CUDA events** (`rfgpu ... --bench 20 --warmup 3`) give kernel and transfer times. They work
   everywhere and are the source of every timing in the profiling log.
 - **Nsight Systems** (`nsys profile`) records the timeline and counts kernel launches.
-- **Nsight Compute** (`ncu --set full -o docs/profiles/NAME ./build/rfgpu ...`) gives per-kernel
-  metrics. The reports in `docs/profiles/` can be opened in the Nsight Compute GUI or read with
-  `ncu --import`, which needs no GPU.
+- **Nsight Compute** gives per-kernel metrics. `tools/profile_kernels.sh` records a report for
+  every rfgpu kernel variant, and `compiler/tools/measure.py --ncu-out docs/profiles` one for
+  each compiled SigFlow program. The reports in `docs/profiles/` can be opened in the Nsight
+  Compute GUI or read with `ncu --import`, which needs no GPU.
 
 ### Enabling GPU performance counters under WSL2
 
@@ -77,7 +78,7 @@ The setting can reset after a driver update, so repeat it after updating.
 
 ```bash
 pip install -r tools/requirements-figures.txt
-python tools/make_figures.py collect-ncu      # metrics from docs/profiles/*.ncu-rep (needs ncu)
+python tools/make_figures.py collect-ncu      # metrics from docs/profiles/*.ncu-repz (needs ncu)
 python tools/make_figures.py collect-times    # re-time every rfgpu variant (needs a GPU)
 python tools/make_figures.py plot             # docs/results -> docs/figures
 ```
