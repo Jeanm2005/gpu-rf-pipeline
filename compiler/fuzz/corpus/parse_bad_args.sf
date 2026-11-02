@@ -1,0 +1,5 @@
+# args: --emit=ast
+# arg = IDENT "=" literal | expr: keyword values must be literals, keywords come last.
+a = fir(x, taps=lowpass)
+b = fir(taps="h.f32", x)
+c = fir(x,)

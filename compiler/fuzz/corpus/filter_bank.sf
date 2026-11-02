@@ -1,0 +1,12 @@
+# One low-pass filter over three captures of different lengths: tone_odd (not a multiple of the
+# block size), short (shorter than the filter), and zeros. The fusion pass puts the three FIRs
+# in one group, so the CUDA backend filters all of them in a single launch.
+tone  = capture("fixtures/tone_odd.cf32", rate=1e6)
+short = capture("fixtures/short.cf32", rate=1e6)
+zeros = capture("fixtures/zeros.cf32", rate=1e6)
+lt    = tone  |> fir(taps="fixtures/lowpass.f32")
+ls    = short |> fir(taps="fixtures/lowpass.f32")
+lz    = zeros |> fir(taps="fixtures/lowpass.f32")
+emit lt -> "out/tone_odd_lowpass.cf32"
+emit ls -> "out/short_lowpass.cf32"
+emit lz -> "out/zeros_lowpass.cf32"

@@ -140,6 +140,19 @@ pytest -q tests/e2e
   every emitted file is compared to the NumPy/SciPy reference from `../tools/reference.py`,
   evaluated on the same IR (`--emit=json`). Needs `../build/rfgpu` and a GPU; skips otherwise.
   `SIGFLOWC_BIN` and `RFGPU_BIN` point it at other builds.
+- **Fuzzing** (libFuzzer, `fuzz/fuzz_sigflow.cpp`): arbitrary bytes go through the lexer,
+  parser, and semantic analysis, and every program that passes them through the IR builder,
+  each pass with and without its optional steps, and both backends, under AddressSanitizer and
+  UndefinedBehaviorSanitizer. Any crash or sanitizer report is a bug: every input has to end
+  in diagnostics or in output. CI fuzzes for 60 seconds on every push.
+
+```bash
+CXX=clang++ cmake -S . -B build-fuzz -DSIGFLOWC_FUZZ=ON -DSIGFLOWC_BUILD_TESTS=OFF \
+    -DCMAKE_BUILD_TYPE=RelWithDebInfo
+cmake --build build-fuzz -j
+mkdir -p out/corpus && cp fuzz/corpus/* out/corpus/   # keep new inputs out of the seeds
+build-fuzz/fuzz_sigflow -max_total_time=600 -dict=fuzz/sigflow.dict out/corpus
+```
 
 ## Results
 

@@ -8,6 +8,8 @@
 #           with every compiler warning treated as an error.
 #   sigflowc  the SigFlow compiler (compiler/) builds with warnings as errors and passes its
 #           GoogleTest unit tests and golden tests (ctest). It needs no GPU.
+#   fuzz    a libFuzzer target over the whole compiler (compiler/fuzz/) runs for 60 seconds
+#           with AddressSanitizer and UndefinedBehaviorSanitizer.
 #   viewer  the DAG viewer (compiler/viewer/) type-checks and passes its node:test suites,
 #           which read the compiler's golden JSON.
 #
@@ -102,6 +104,36 @@ jobs:
 
       - name: Test
         run: ctest --test-dir compiler/build --output-on-failure
+
+  fuzz:
+    name: sigflowc fuzzing (60 s)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: >
+          CXX=clang++ cmake -S compiler -B compiler/build-fuzz -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          -DSIGFLOWC_FUZZ=ON -DSIGFLOWC_BUILD_TESTS=OFF
+
+      - name: Build
+        run: cmake --build compiler/build-fuzz -j
+
+      # A fresh copy of the seed corpus, so new inputs stay out of the checkout. Any crash,
+      # sanitizer report, or timeout fails the job and leaves the input as an artifact.
+      - name: Fuzz
+        run: |
+          mkdir -p "$RUNNER_TEMP/corpus" "$RUNNER_TEMP/crashes"
+          cp compiler/fuzz/corpus/* "$RUNNER_TEMP/corpus/"
+          compiler/build-fuzz/fuzz_sigflow -max_total_time=60 -max_len=4096 -timeout=10 \
+            -dict=compiler/fuzz/sigflow.dict -artifact_prefix="$RUNNER_TEMP/crashes/" \
+            "$RUNNER_TEMP/corpus"
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: fuzz-crashes
+          path: ${{ runner.temp }}/crashes
 
   viewer:
     name: DAG viewer tests

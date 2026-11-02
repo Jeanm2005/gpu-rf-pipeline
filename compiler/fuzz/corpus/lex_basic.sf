@@ -1,0 +1,6 @@
+# args: --emit=tokens
+# Every token kind, a blank line, a comment line, and a trailing comment.
+
+a    = capture("fixtures/ch0.cf32", rate=2.4e6)
+spec = a |> fft(n=1024) |> magnitude   # pipe into a bare call
+emit spec -> "out/spectrum.f32"

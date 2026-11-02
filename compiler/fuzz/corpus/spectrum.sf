@@ -1,0 +1,6 @@
+# Magnitude spectrum of a tone, 1024-point frames.
+# Paths are relative to the directory the generated script runs from; the end-to-end tests run
+# it next to a "fixtures" link to ../../tests/fixtures.
+x   = capture("fixtures/tone.cf32", rate=1e6)
+mag = x |> fft(n=1024) |> magnitude
+emit mag -> "out/tone_spectrum.f32"

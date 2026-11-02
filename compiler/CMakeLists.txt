@@ -33,6 +33,21 @@ target_include_directories(sigflow_core PUBLIC include)
 add_executable(sigflowc src/main.cpp)
 target_link_libraries(sigflowc PRIVATE sigflow_core)
 
+# libFuzzer target over the whole pipeline (fuzz/fuzz_sigflow.cpp). Needs Clang; the core
+# library is instrumented too, so coverage guides the fuzzer through every pass.
+option(SIGFLOWC_FUZZ "Build the fuzz_sigflow libFuzzer target (Clang only)" OFF)
+if(SIGFLOWC_FUZZ)
+  if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    message(FATAL_ERROR "SIGFLOWC_FUZZ needs Clang (-DCMAKE_CXX_COMPILER=clang++)")
+  endif()
+  target_compile_options(sigflow_core PUBLIC -fsanitize=fuzzer-no-link,address,undefined
+                                             -fno-sanitize-recover=undefined)
+  target_link_options(sigflow_core PUBLIC -fsanitize=address,undefined)
+  add_executable(fuzz_sigflow fuzz/fuzz_sigflow.cpp)
+  target_link_libraries(fuzz_sigflow PRIVATE sigflow_core)
+  target_link_options(fuzz_sigflow PRIVATE -fsanitize=fuzzer)
+endif()
+
 option(SIGFLOWC_BUILD_TESTS "Build sigflowc unit and golden tests" ON)
 
 if(SIGFLOWC_BUILD_TESTS)

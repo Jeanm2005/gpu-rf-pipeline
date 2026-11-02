@@ -1,0 +1,9 @@
+# Cross-correlation of the raw two-channel capture, whose peak gives true_delay_samples from
+# tests/fixtures/ch1.json, plus the filtered tone_odd fixture (a partial last frame).
+a     = capture("fixtures/ch0.cf32", rate=1e6)
+b     = capture("fixtures/ch1.cf32", rate=1e6)
+tone  = capture("fixtures/tone_odd.cf32", rate=1e6)
+emit corr -> "out/delay_xcorr.cf32"
+emit low  -> "out/tone_odd_lowpass.cf32"
+corr  = xcorr(a, b)
+low   = tone |> fir(taps="fixtures/lowpass_long.f32")
