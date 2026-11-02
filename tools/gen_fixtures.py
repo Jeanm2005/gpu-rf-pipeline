@@ -96,6 +96,28 @@ def tone_meta(tones: list[dict[str, float]], noise_std: float) -> dict[str, Any]
     }
 
 
+def write_sigmf_ci16(out: Path, name: str, x: np.ndarray, description: str) -> None:
+    """A SigMF recording (NAME.sigmf-meta + NAME.sigmf-data) in ci16_le, the integer format
+    most SDR receivers record: full scale 32767, so rfgpu reads it back as x / 32768 * scale."""
+    iq = np.empty(2 * len(x), dtype="<i2")
+    iq[0::2] = np.round(x.real * 32767)
+    iq[1::2] = np.round(x.imag * 32767)
+    iq.tofile(out / f"{name}.sigmf-data")
+    meta = {
+        "global": {
+            "core:datatype": "ci16_le",
+            "core:sample_rate": SAMPLE_RATE,
+            "core:version": "1.2.0",
+            "core:num_channels": 1,
+            "core:description": description,
+            "core:generator": GENERATOR,
+        },
+        "captures": [{"core:sample_start": 0, "core:frequency": 915e6}],
+        "annotations": [],
+    }
+    (out / f"{name}.sigmf-meta").write_text(json.dumps(meta, indent=2) + "\n")
+
+
 def generate(out: Path) -> list[str]:
     out.mkdir(parents=True, exist_ok=True)
     written: list[str] = []
@@ -151,6 +173,15 @@ def generate(out: Path) -> list[str]:
     write_cf32(out, "ch0", ch0, {**pair, "channel": 0, "paired_with": "ch1"})
     write_cf32(out, "ch1", ch1, {**pair, "channel": 1, "paired_with": "ch0"})
     written += ["ch0", "ch1"]
+
+    # --- SigMF recording ---------------------------------------------------------------------
+    # The tone_odd signal scaled to half of full scale and stored as 16-bit integers, the way
+    # an SDR receiver records it, to test reading SigMF and converting ci16 to cf32.
+    seed = 1002
+    x = tones_plus_noise(np.random.default_rng(seed), 10007, tones, noise_std=0.05)
+    write_sigmf_ci16(out, "tone_ci16", 0.5 * x / np.max(np.abs(x)),
+                     "tone_odd at half of full scale, 16-bit integer samples")
+    written.append("tone_ci16")
 
     # --- Filter taps -------------------------------------------------------------------------
     # 63-tap lowpass, cutoff at 0.2 of Nyquist: passes bin 40, rejects bin -300.

@@ -267,3 +267,41 @@ def test_truncated_cf32_is_rejected(tmp_path: Path) -> None:
                                  "--out", tmp_path / "s.cf32")
     assert proc.returncode == 1
     assert "bad.cf32" in proc.stderr
+
+
+# --- SigMF recordings ----------------------------------------------------------------------
+# tone_ci16 is a SigMF pair in ci16_le. rfgpu converts it to cf32 on reading (x / 32768), which
+# is exact in float32, so operations on it match the reference on the same conversion.
+
+def read_ci16_sigmf(name: str) -> np.ndarray:
+    raw = np.fromfile(FIXTURES / f"{name}.sigmf-data", dtype="<i2").astype(np.float64) / 32768
+    return raw[0::2] + 1j * raw[1::2]
+
+
+@pytest.mark.parametrize("suffix", [".sigmf-meta", ".sigmf-data"])  # either file of the pair
+def test_sigmf_ci16_reads_as_scaled_cf32(tmp_path: Path, suffix: str) -> None:
+    out = tmp_path / "fir.cf32"
+    rfgpu("fir", "--in", FIXTURES / f"tone_ci16{suffix}", "--taps", taps_file("identity"),
+          "--out", out)
+    np.testing.assert_array_equal(reference.read_cf32(out), read_ci16_sigmf("tone_ci16"))
+
+
+def test_sigmf_input_matches_reference(tmp_path: Path) -> None:
+    out = tmp_path / "fir.cf32"
+    rfgpu("fir", "--in", FIXTURES / "tone_ci16.sigmf-meta", "--taps", taps_file("lowpass"),
+          "--out", out)
+    expected = reference.fir(read_ci16_sigmf("tone_ci16"), reference.read_f32(taps_file("lowpass")))
+    np.testing.assert_allclose(reference.read_cf32(out), expected, rtol=FIR_RTOL, atol=FIR_ATOL)
+
+
+@pytest.mark.parametrize("meta,message", [
+    ({"core:datatype": "cf64_le"}, "cf64_le"),
+    ({"core:datatype": "ci16_le", "core:num_channels": 2}, "channels"),
+])
+def test_unsupported_sigmf_is_a_runtime_error(tmp_path: Path, meta: dict, message: str) -> None:
+    (tmp_path / "rec.sigmf-meta").write_text(json.dumps({"global": meta}))
+    (tmp_path / "rec.sigmf-data").write_bytes(bytes(16))
+    proc = run_expecting_failure("magnitude", "--in", tmp_path / "rec.sigmf-meta",
+                                 "--out", tmp_path / "m.f32")
+    assert proc.returncode == 1
+    assert message in proc.stderr

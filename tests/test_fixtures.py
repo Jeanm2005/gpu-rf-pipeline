@@ -80,3 +80,13 @@ def test_two_channel_delay_is_recoverable(fixtures: Path) -> None:
     r = np.correlate(b, a, mode="full")
     lags = np.arange(-(len(a) - 1), len(b))
     assert lags[np.argmax(np.abs(r))] == meta["true_delay_samples"]
+
+
+def test_sigmf_recording_is_consistent(fixtures: Path) -> None:
+    meta = json.loads((fixtures / "tone_ci16.sigmf-meta").read_text())
+    assert meta["global"]["core:datatype"] == "ci16_le"
+    assert meta["global"]["core:sample_rate"] == gen_fixtures.SAMPLE_RATE
+    raw = np.fromfile(fixtures / "tone_ci16.sigmf-data", dtype="<i2")
+    assert len(raw) == 2 * 10007
+    # Scaled to half of full scale, so no component clips.
+    assert 0.45 * 32767 < np.max(np.abs(raw)) <= 0.5 * 32767 + 1
