@@ -86,6 +86,9 @@ private:
         if (kernels_.fir == "tiled") {
             return "FirImpl::Tiled";
         }
+        if (kernels_.fir == "register") {
+            return "FirImpl::Register";
+        }
         return kernels_.fir == "tiled_const" ? "FirImpl::TiledConst" : "FirImpl::Naive";
     }
 

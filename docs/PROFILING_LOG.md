@@ -22,6 +22,8 @@ are the CUDA 12.8 ones that iterations 0 to 2 cite.
 
 ![FIR kernel time by variant](figures/fir_kernel_time.png)
 
+![FIR kernel time by block size](figures/fir_block_sweep.png)
+
 ![Cross-correlation kernel time by variant](figures/xcorr_kernel_time.png)
 
 ![Memory throughput and achieved occupancy per kernel](figures/ncu_utilization.png)
@@ -344,6 +346,101 @@ hold.
   1.42× (63 taps) and 1.61× (1025 taps) over naive, tiled_const 2.20× and 3.01×, xcorr tiled
   2.17×.
 - Data: printed by `compiler/tools/measure.py`; numbers as above.
+
+## Iteration 3 — FIR — block-size sweep (`--block`)
+
+Every FIR launch so far used 256 threads per block, a neutral starting point. `rfgpu fir
+--block B` now sets it, and `tools/make_figures.py collect-sweep` times each variant at 64, 128,
+256, 512, and 1024 threads on 2026-11-01.
+
+- GPU / driver / CUDA version: NVIDIA GeForce RTX 5080 Laptop GPU (compute capability 12.0) /
+  617.42 / 13.4
+- Input size and parameters: `bench_tone.cf32`, 2^24 samples, `lowpass.f32` (63 taps) and
+  `lowpass_long.f32` (1025 taps). `--bench 20`, 3 warm-up runs, five interleaved rounds over
+  all 40 configurations; median of the round means (range in
+  `docs/results/fir_block_sweep.csv`). The `register` variant is iteration 4.
+
+| Variant, taps | 64 | 128 | 256 | 512 | 1024 |
+|---|---|---|---|---|---|
+| naive, 63 | 2.39 ms | 2.39 | 2.39 | 2.40 | 2.55 |
+| tiled, 63 | 1.20 | 1.18 | **1.18** | 1.21 | 1.35 |
+| tiled_const, 63 | 0.77 | 0.75 | **0.73** | 0.78 | 0.92 |
+| register, 63 | **0.53** | 0.60 | 0.62 | 0.63 | 0.89 |
+| naive, 1025 | 24.6 | 24.8 | 25.1 | 24.1 | **23.6** |
+| tiled, 1025 | 16.0 | 15.8 | 15.7 | **15.6** | 15.8 |
+| tiled_const, 1025 | 9.15 | 8.85 | 8.71 | **8.65** | 8.78 |
+| register, 1025 | 5.56 | 5.11 | 4.97 | **4.89** | 7.14 |
+
+![FIR kernel time by block size](figures/fir_block_sweep.png)
+
+- Achieved memory bandwidth and occupancy: at 256 threads, as in the CUDA 13.4 table above.
+  The profiler already showed 89 to 99 % achieved occupancy for every variant, so a different
+  block size had little room to help.
+- Top bottleneck reported by the profiler: unchanged by block size. The time-domain kernels
+  stay L1/TEX-bound; block size only changes how much of each tile is halo (with 1025 taps
+  and 64 threads, 16 samples are loaded per output; with 512 threads, 3).
+- What I changed and why: nothing in the kernels; one launch parameter, swept.
+- Result: a negative result for the existing variants. From 64 to 512 threads, no variant
+  changes by more than 9 %, and 256 is within 1 % of the best block size for `tiled` and
+  `tiled_const` at both lengths. 1024 threads is the worst or close to it everywhere: fewer,
+  larger blocks leave SMs idle at the tail of the grid and, for the shared-memory variants,
+  allow fewer resident blocks. 256 stays the default. The sweep matters for `register`
+  (iteration 4), whose larger tiles make the block size a real trade-off.
+- Data: `docs/results/fir_block_sweep.csv`.
+
+## Iteration 4 — FIR — outputs in registers, I/Q-split tile (`--impl register`)
+
+- GPU / driver / CUDA version: NVIDIA GeForce RTX 5080 Laptop GPU (compute capability 12.0) /
+  617.42 / 13.4
+- Input size and parameters: as iteration 3, 256 threads per block. Kernel times from
+  `tools/make_figures.py collect-times` (five interleaved rounds, all eleven rfgpu
+  configurations, 2026-11-01); Nsight Compute reports `docs/profiles/fir_register_63.ncu-repz`
+  and `fir_register_1025.ncu-repz`.
+
+| | 63 taps | 1025 taps |
+|---|---|---|
+| Kernel time, `tiled_const` (median, range of 5 rounds) | 0.753 ms (0.750 to 0.971) | 8.722 ms (8.702 to 8.752) |
+| Kernel time, `register` | 0.626 ms (0.602 to 0.786) | 5.011 ms (5.004 to 5.019) |
+| Outputs per thread | 4 | 8 |
+| `ncu` Duration (`tiled_const` → `register`) | 0.92 → 0.71 ms | 12.29 → 6.93 ms |
+| L1/TEX Cache Throughput | 95.8 → 75.4 % | 99.2 → 45.1 % |
+| DRAM Throughput | 39.7 → 52.0 % | 3.0 → 5.2 % |
+| Issue Slots Busy | 63.0 → 80.5 % | 54.9 → 88.8 % |
+| Registers per thread | 26 → 30 | 26 → 46 |
+| Achieved occupancy | 94.3 → 96.1 % | 99.1 → 49.3 % |
+
+- Top bottleneck reported by the profiler: before, the L1/TEX unit at 96 to 99 % with warps
+  stalled on the MIO queue (iteration 2 and the CUDA 13.4 table): one shared-memory load per
+  multiply-add pair. After, instruction issue: 89 % of issue slots are busy with 1025 taps,
+  L1/TEX is down to 45 %, and DRAM is still mostly idle. With 63 taps the kernel is now limited
+  by loading its input, with DRAM at 52 %.
+- What I changed and why: the profiler said the samples, not the taps, are the problem. Each
+  thread now computes R consecutive outputs and keeps the R samples they share in registers, so
+  moving to the next tap loads one new sample for all R outputs instead of R samples (the
+  window shifts by one). Consecutive threads then read samples R apart, which would put R
+  threads of a warp on each shared-memory bank with a tile of interleaved I/Q pairs. The tile is
+  therefore split into separate I and Q float arrays (the structure-of-arrays layout the
+  roadmap named), padded by one float every 32, which spreads a warp's reads over all 32 banks.
+  R is a template parameter: R = 4 at first; profiling the 1025-tap case showed ~21 issued
+  instructions per tap per thread, of which 8 were multiply-adds, so R = 8 spreads the loads and
+  index arithmetic over twice as many. That made 127 to 1025 taps 1.1× to 1.8× faster again
+  but 63 taps 17 % slower, since the larger tile halves the resident blocks and short filters
+  are bound by loading the tile. `register` therefore uses R = 8 from 128 taps on and R = 4
+  below (measured crossover between 63 and 127 taps).
+- Result (speedup vs. previous iteration and vs. naive): 1.20× over `tiled_const` with 63 taps
+  and 1.74× with 1025 taps; 2.73× and 4.97× over naive. Outputs match the reference within the
+  FIR tolerance (the sum per output runs in the same tap order as before, so results agree with
+  `tiled_const` to float32 rounding). R = 8 with 1025 taps needs 76 KB of shared memory at 1024
+  threads per block, so the kernel opts in to the device's larger per-block limit.
+- Open question: with 1025 taps the kernel is issue-bound at half occupancy; packing I and Q
+  as `float2` arithmetic or computing in half precision would cut instructions further, at the
+  cost of a different numerical contract.
+- Transfer time in this run (median of round means): host-to-device 17.2 to 17.6 ms and
+  device-to-host 25.1 to 26.9 ms, about 45 % slower than in the CUDA 13.4 re-measurement. The
+  compiler was being built on the same machine during part of the run; transfers use
+  pageable host memory and the CPU, kernels do not. Kernel times are unaffected (`tiled_const`
+  matches the re-measurement within 6 %).
+- Data: `docs/results/rfgpu_times.csv`, `docs/results/fir_block_sweep.csv`.
 
 ## SigFlow buffer reuse — `two_channel.sf` — CUDA backend, reuse against `--no-reuse`
 

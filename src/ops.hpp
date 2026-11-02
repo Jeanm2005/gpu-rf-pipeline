@@ -29,8 +29,10 @@ std::vector<cf32> spectrum_cufft(const std::vector<cf32>& x, int nfft, Bench& be
 std::vector<float> magnitude_cuda(const std::vector<cf32>& x, Bench& bench);
 
 // fir.cu. y[n] = sum_k taps[k] * x[n - k], x[m] = 0 for m < 0. Output length x.size().
+// `block` is the threads per block (a multiple of 32, at most 1024; rfgpu's --block).
 using FirFn = std::vector<cf32> (*)(const std::vector<cf32>& x, const std::vector<float>& taps,
-                                    Bench& bench);
+                                    int block, Bench& bench);
+constexpr int kDefaultFirBlock = 256;
 const std::vector<Impl<FirFn>>& fir_impls();  // first entry is the default
 
 // xcorr.cu. r[k] = sum_n b[n + k] * conj(a[n]) for k = -(Na - 1) ... Nb - 1.

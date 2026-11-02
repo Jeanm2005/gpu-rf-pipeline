@@ -11,21 +11,30 @@
 #include "types.hpp"
 
 #include <cstddef>
+#include <cuda_runtime.h>
 #include <cufft.h>
 
 // --- FIR (fir.cu, fused.cu) ----------------------------------------------------------------
 
-// The FIR variants, as rfgpu's --impl names them: naive, tiled, tiled_const.
-enum class FirImpl { Naive, Tiled, TiledConst };
+// The FIR variants, as rfgpu's --impl names them: naive, tiled, tiled_const, register.
+enum class FirImpl { Naive, Tiled, TiledConst, Register };
 
 // Parses an --impl name; returns false for an unknown one.
 bool parse_fir_impl(const char* name, FirImpl& impl);
 
 // y[n] = sum_k taps[k] * x[n - k] for n < num_samples, with `taps` in GPU memory. TiledConst
-// first copies the taps into constant memory (at most 8192), which is part of the enqueued
-// work. Tiled and TiledConst throw if the halo does not fit in one block's shared memory.
+// and Register first copy the taps into constant memory (at most 8192), which is part of the
+// enqueued work. The tiled variants throw if the halo does not fit in one block's shared
+// memory.
 void fir_device(FirImpl impl, const cf32* x, const float* taps, cf32* y, int num_samples,
                 int num_taps);
+
+// The two halves of fir_device, for callers on their own streams. The constant-memory taps are
+// one bank per program, shared by every stream: load them once with fir_load_const_taps, then
+// fir_launch never touches them (it ignores `taps` for TiledConst and Register).
+void fir_load_const_taps(const float* taps, int num_taps, cudaStream_t stream);
+void fir_launch(FirImpl impl, const cf32* x, const float* taps, cf32* y, int num_samples,
+                int num_taps, cudaStream_t stream);
 
 // The naive variant on its own (used by rfgpu's host wrapper).
 void fir_naive_device(const cf32* x, const float* taps, cf32* y, int num_samples, int num_taps);

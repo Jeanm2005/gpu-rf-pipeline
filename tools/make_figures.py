@@ -3,12 +3,14 @@
 
     python tools/make_figures.py collect-ncu      # needs ncu (reads saved reports; no GPU)
     python tools/make_figures.py collect-times    # needs a GPU, build/rfgpu, out/bench inputs
+    python tools/make_figures.py collect-sweep    # FIR block-size sweep; same needs
     python tools/make_figures.py plot             # needs only matplotlib and docs/results/
 
 The data files are committed, so `plot` reproduces every figure without profiling again:
 
   docs/results/ncu_metrics.csv     per-kernel Nsight Compute metrics from docs/profiles/*.ncu-repz
   docs/results/rfgpu_times.csv     CUDA-event times for every rfgpu variant, one row per round
+  docs/results/fir_block_sweep.csv CUDA-event FIR times for each variant and --block
   docs/results/sigflow_*.json      compiler/tools/measure.py summaries (--json-out)
 
 Every figure is written twice, NAME.png for light backgrounds and NAME-dark.png for dark ones,
@@ -45,13 +47,19 @@ RFGPU_CONFIGS = [
     ("fir naive 63", "fir", "naive", "lowpass.f32"),
     ("fir tiled 63", "fir", "tiled", "lowpass.f32"),
     ("fir tiled_const 63", "fir", "tiled_const", "lowpass.f32"),
+    ("fir register 63", "fir", "register", "lowpass.f32"),
     ("fir naive 1025", "fir", "naive", "lowpass_long.f32"),
     ("fir tiled 1025", "fir", "tiled", "lowpass_long.f32"),
     ("fir tiled_const 1025", "fir", "tiled_const", "lowpass_long.f32"),
+    ("fir register 1025", "fir", "register", "lowpass_long.f32"),
     ("xcorr naive", "xcorr", "naive", None),
     ("xcorr tiled", "xcorr", "tiled", None),
     ("xcorr fft", "xcorr", "fft", None),
 ]
+
+FIR_VARIANTS = ["naive", "tiled", "tiled_const", "register"]
+SWEEP_BLOCKS = [64, 128, 256, 512, 1024]
+SWEEP_TAPS = {"63": "lowpass.f32", "1025": "lowpass_long.f32"}
 
 
 # --- collect -------------------------------------------------------------------------------
@@ -114,15 +122,41 @@ def collect_times(rfgpu: Path, bench_dir: Path, rounds: int, runs: int, warmup: 
         writer.writerows(rows)
 
 
+def collect_sweep(rfgpu: Path, bench_dir: Path, rounds: int, runs: int, warmup: int) -> None:
+    """Kernel time of every FIR variant at every block size in SWEEP_BLOCKS, both filters."""
+    fixtures = ROOT / "tests" / "fixtures"
+    out = ROOT / "out"
+    out.mkdir(exist_ok=True)
+    rows = []
+    for round_index in range(rounds):  # interleaved, as in collect_times
+        for taps, taps_file in SWEEP_TAPS.items():
+            for impl in FIR_VARIANTS:
+                for block in SWEEP_BLOCKS:
+                    report = json.loads(run([
+                        str(rfgpu), "fir", "--in", str(bench_dir / "bench_tone.cf32"),
+                        "--taps", str(fixtures / taps_file), "--out", str(out / "figures_tmp.cf32"),
+                        "--impl", impl, "--block", str(block), "--bench", str(runs),
+                        "--warmup", str(warmup)]))
+                    rows.append({"impl": impl, "taps": taps, "block": block, "round": round_index,
+                                 "gpu": report["gpu"], "kernel_ms": report["kernel_ms"]["mean"]})
+                    print(f"round {round_index}: {impl} {taps} taps, block {block}: "
+                          f"{report['kernel_ms']['mean']:.4f} ms")
+    RESULTS.mkdir(parents=True, exist_ok=True)
+    with open(RESULTS / "fir_block_sweep.csv", "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
+
+
 # --- plot ----------------------------------------------------------------------------------
 
 # Colors from a categorical palette validated for color-vision deficiency, stepped separately
 # for each surface. Text is always in text colors, never in a series color.
 THEMES = {
     "light": {"surface": "#fcfcfb", "text": "#0b0b0b", "muted": "#52514e", "grid": "#e1e0d9",
-              "axis": "#c3c2b7", "series": ["#2a78d6", "#eb6834", "#1baf7a"]},
+              "axis": "#c3c2b7", "series": ["#2a78d6", "#eb6834", "#1baf7a", "#8a5cd1"]},
     "dark": {"surface": "#1a1a19", "text": "#f0efec", "muted": "#c3c2b7", "grid": "#2c2c2a",
-             "axis": "#383835", "series": ["#3987e5", "#d95926", "#199e70"]},
+             "axis": "#383835", "series": ["#3987e5", "#d95926", "#199e70", "#9b72e0"]},
 }
 
 
@@ -180,9 +214,10 @@ def bar_panel(ax, theme, labels, values, ranges, color, unit, log=False, fmt="{:
 
 def plot_fir(plt, theme_name: str, times: dict) -> None:
     theme = THEMES[theme_name]
-    fig, axes = plt.subplots(1, 2, figsize=(9.6, 2.6), facecolor=theme["surface"])
-    variants = ["naive", "tiled", "tiled_const"]
-    labels = ["naive", "shared-memory tile", "tile + constant-memory taps"]
+    fig, axes = plt.subplots(1, 2, figsize=(9.6, 3.0), facecolor=theme["surface"])
+    variants = FIR_VARIANTS
+    labels = ["naive", "shared-memory tile", "tile + constant-memory taps",
+              "register: 4-8 outputs per thread"]
     for ax, taps in zip(axes, ("63", "1025")):
         stats = [times[f"fir {v} {taps}"] for v in variants]
         bar_panel(ax, theme, labels, [s[0] for s in stats], [(s[1], s[2]) for s in stats],
@@ -195,6 +230,42 @@ def plot_fir(plt, theme_name: str, times: dict) -> None:
                  color=theme["text"], fontsize=11, x=0.01, ha="left")
     fig.tight_layout()
     save(fig, "fir_kernel_time", theme_name)
+    plt.close(fig)
+
+
+def plot_sweep(plt, theme_name: str, rows: list[dict]) -> None:
+    """Kernel time against block size, one line per FIR variant, a panel per filter length."""
+    theme = THEMES[theme_name]
+    fig, axes = plt.subplots(1, 2, figsize=(9.6, 3.2), facecolor=theme["surface"])
+    for ax, taps in zip(axes, SWEEP_TAPS):
+        for impl, color in zip(FIR_VARIANTS, theme["series"]):
+            values = [statistics.median(float(r["kernel_ms"]) for r in rows
+                                        if r["impl"] == impl and r["taps"] == taps
+                                        and int(r["block"]) == block)
+                      for block in SWEEP_BLOCKS]
+            ax.plot(SWEEP_BLOCKS, values, color=color, linewidth=2, marker="o", markersize=5,
+                    label=impl, zorder=3)
+        ax.set_xscale("log", base=2)
+        ax.set_xticks(SWEEP_BLOCKS, [str(b) for b in SWEEP_BLOCKS])
+        ax.set_yscale("log")
+        from matplotlib.ticker import FuncFormatter, NullFormatter
+
+        ax.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{y:g}"))
+        ax.yaxis.set_minor_formatter(NullFormatter())
+        ax.set_yticks([0.5, 1, 2] if taps == "63" else [5, 10, 20])
+        ax.set_title(f"{taps} taps", color=theme["text"], fontsize=10, loc="left")
+        ax.set_xlabel("threads per block (--block)", color=theme["muted"], fontsize=9)
+        style_axes(ax, theme)
+        ax.yaxis.grid(True, color=theme["grid"], linewidth=0.8)
+    axes[0].set_ylabel("kernel time (ms, log scale)", color=theme["muted"], fontsize=9)
+    legend = axes[1].legend(loc="center left", bbox_to_anchor=(1.0, 0.5), frameon=False,
+                            fontsize=9)
+    for text in legend.get_texts():
+        text.set_color(theme["text"])
+    fig.suptitle("FIR filter, 2^24 complex samples: kernel time by block size "
+                 "(median of 5 rounds)", color=theme["text"], fontsize=11, x=0.01, ha="left")
+    fig.tight_layout()
+    save(fig, "fir_block_sweep", theme_name)
     plt.close(fig)
 
 
@@ -221,6 +292,7 @@ def plot_ncu(plt, theme_name: str, metrics: list[dict]) -> None:
     order = [("fir_naive_1025", "fir_naive_kernel", "FIR naive"),
              ("fir_tiled_1025", "fir_tiled_kernel", "FIR tiled"),
              ("fir_tiled_const_1025", "fir_tiled_const_kernel", "FIR tiled + const taps"),
+             ("fir_register_1025", "void fir_register_kernel<8>", "FIR register (8 outputs per thread)"),
              ("xcorr_naive", "xcorr_naive_kernel", "xcorr naive"),
              ("xcorr_tiled", "xcorr_tiled_kernel", "xcorr tiled"),
              ("xcorr_fft", "xcorr_conj_mul_kernel", "xcorr fft (conj. multiply)")]
@@ -305,9 +377,12 @@ def plot() -> None:
         times = medians(list(csv.DictReader(f)), "kernel_ms")
     with open(RESULTS / "ncu_metrics.csv") as f:
         metrics = list(csv.DictReader(f))
+    with open(RESULTS / "fir_block_sweep.csv") as f:
+        sweep = list(csv.DictReader(f))
     summaries = [json.loads(p.read_text()) for p in sorted(RESULTS.glob("sigflow_*.json"))]
     for theme_name in THEMES:
         plot_fir(plt, theme_name, times)
+        plot_sweep(plt, theme_name, sweep)
         plot_xcorr(plt, theme_name, times)
         plot_ncu(plt, theme_name, metrics)
         for summary in summaries:
@@ -320,13 +395,14 @@ def main() -> None:
     sub = parser.add_subparsers(dest="command", required=True)
     ncu = sub.add_parser("collect-ncu")
     ncu.add_argument("--ncu", default="ncu")
-    times = sub.add_parser("collect-times")
-    times.add_argument("--rfgpu", type=Path,
-                       default=Path(os.environ.get("RFGPU_BIN", ROOT / "build" / "rfgpu")))
-    times.add_argument("--bench-dir", type=Path, default=ROOT / "out" / "bench")
-    times.add_argument("--rounds", type=int, default=5)
-    times.add_argument("--runs", type=int, default=20)
-    times.add_argument("--warmup", type=int, default=3)
+    for name in ("collect-times", "collect-sweep"):
+        times = sub.add_parser(name)
+        times.add_argument("--rfgpu", type=Path,
+                           default=Path(os.environ.get("RFGPU_BIN", ROOT / "build" / "rfgpu")))
+        times.add_argument("--bench-dir", type=Path, default=ROOT / "out" / "bench")
+        times.add_argument("--rounds", type=int, default=5)
+        times.add_argument("--runs", type=int, default=20)
+        times.add_argument("--warmup", type=int, default=3)
     sub.add_parser("plot")
     args = parser.parse_args()
 
@@ -334,6 +410,8 @@ def main() -> None:
         collect_ncu(args.ncu)
     elif args.command == "collect-times":
         collect_times(args.rfgpu, args.bench_dir, args.rounds, args.runs, args.warmup)
+    elif args.command == "collect-sweep":
+        collect_sweep(args.rfgpu, args.bench_dir, args.rounds, args.runs, args.warmup)
     else:
         plot()
 

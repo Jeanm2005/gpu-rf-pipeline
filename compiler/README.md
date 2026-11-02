@@ -121,7 +121,7 @@ out/run --bench 20 --warmup 3            # same outputs, plus a JSON report of l
                                          # GPU memory, and phase times
 
 # Kernel variants, as rfgpu names them (both backends; naive by default)
-./build/sigflowc examples/two_channel.sf --emit=cuda --fir-impl=tiled_const --xcorr-impl=fft     -o out/run_fast.cu
+./build/sigflowc examples/two_channel.sf --emit=cuda --fir-impl=register --xcorr-impl=fft     -o out/run_fast.cu
 
 ctest --test-dir build --output-on-failure
 pytest -q tests/e2e

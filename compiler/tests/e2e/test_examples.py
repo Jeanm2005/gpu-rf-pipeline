@@ -133,7 +133,10 @@ def compile_and_run(example: Path, workdir: Path, *flags: str, backend: str = "s
     ("--fir-impl=tiled", "--xcorr-impl=tiled"),
     ("--fir-impl=tiled_const", "--xcorr-impl=fft"),
     ("--fir-impl=tiled_const", "--xcorr-impl=fft", "--no-fuse"),
-], ids=["default", "no_reuse", "no_fuse", "tiled", "fast", "fast_no_fuse"])
+    ("--fir-impl=register", "--xcorr-impl=fft"),
+    ("--fir-impl=register", "--no-fuse"),
+], ids=["default", "no_reuse", "no_fuse", "tiled", "fast", "fast_no_fuse", "register",
+        "register_no_fuse"])
 @pytest.mark.parametrize("backend", ["script", "cuda"])
 @pytest.mark.parametrize("example", EXAMPLES, ids=[e.stem for e in EXAMPLES])
 def test_example_matches_reference(tmp_path: Path, example: Path, backend: str,

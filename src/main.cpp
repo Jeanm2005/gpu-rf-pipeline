@@ -1,7 +1,7 @@
 // rfgpu: command-line front end for the GPU operations.
 //
 //   rfgpu spectrum  --in x.cf32 --out spec.cf32 [--nfft 1024]
-//   rfgpu fir       --in x.cf32 --taps h.f32 --out y.cf32 [--impl naive]
+//   rfgpu fir       --in x.cf32 --taps h.f32 --out y.cf32 [--impl naive] [--block 256]
 //   rfgpu xcorr     --a a.cf32 --b b.cf32 --out r.cf32 [--impl naive]
 //   rfgpu magnitude --in x.cf32 --out mag.f32
 //   rfgpu info
@@ -55,14 +55,17 @@ void print_usage()
     std::fprintf(stderr,
         "usage:\n"
         "  rfgpu spectrum  --in X.cf32 --out OUT.cf32 [--nfft N]\n"
-        "  rfgpu fir       --in X.cf32 --taps H.f32 --out OUT.cf32 [--impl NAME]\n"
+        "  rfgpu fir       --in X.cf32 --taps H.f32 --out OUT.cf32 [--impl NAME] [--block B]\n"
         "  rfgpu xcorr     --a A.cf32 --b B.cf32 --out OUT.cf32 [--impl NAME]\n"
         "  rfgpu magnitude --in X.cf32 --out OUT.f32\n"
-        "  rfgpu info      print the GPU, CUDA versions, and implementations as JSON\n"
+        "  rfgpu info     print the GPU, CUDA versions, and implementations as JSON\n"
         "\n"
         "benchmark options (spectrum, magnitude, fir, xcorr):\n"
         "  --bench N      time N runs with CUDA events and print the result as JSON\n"
         "  --warmup W     untimed runs before measuring (default 3, needs --bench)\n"
+        "\n"
+        "fir options:\n"
+        "  --block B      threads per block, a multiple of 32 up to 1024 (default 256)\n"
         "\n"
         "implementations:\n");
     print_impls("fir", fir_impls());
@@ -245,9 +248,15 @@ int run_magnitude(int argc, char** argv)
 
 int run_fir(int argc, char** argv)
 {
-    const Args args(argc, argv, {"--in", "--taps", "--out", "--impl", "--bench", "--warmup"});
+    const Args args(argc, argv,
+                    {"--in", "--taps", "--out", "--impl", "--block", "--bench", "--warmup"});
     args.required("--out");
     const Impl<FirFn>& impl = find_impl(fir_impls(), args, "fir");
+    const int block = args.integer("--block", kDefaultFirBlock, 32);
+    if (block % 32 != 0 || block > 1024) {
+        throw UsageError("--block needs a multiple of 32 up to 1024, got "
+                         + std::to_string(block));
+    }
     Bench bench(bench_config(args));
 
     const std::vector<cf32> x = read_cf32(args.required("--in"));
@@ -258,7 +267,7 @@ int run_fir(int argc, char** argv)
     require_int_range(x.size(), "fir input");
     require_int_range(taps.size(), "tap array");
     // An empty input has nothing to launch a kernel for.
-    const std::vector<cf32> y = x.empty() ? std::vector<cf32>() : impl.fn(x, taps, bench);
+    const std::vector<cf32> y = x.empty() ? std::vector<cf32>() : impl.fn(x, taps, block, bench);
     finish(args, "fir", impl.name, x.size(), y, bench);
     return 0;
 }

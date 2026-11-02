@@ -136,6 +136,17 @@ def test_fir_matches_reference(tmp_path: Path, impl: str, name: str, taps: str) 
 
 
 @pytest.mark.parametrize("impl", FIR_IMPLS)
+@pytest.mark.parametrize("block", [32, 96, 1024])  # smallest, not a power of two, largest
+def test_fir_block_size_does_not_change_the_result(tmp_path: Path, impl: str, block: int) -> None:
+    out = tmp_path / "fir.cf32"
+    rfgpu("fir", "--in", cf32("tone_odd"), "--taps", taps_file("lowpass_long"), "--out", out,
+          "--impl", impl, "--block", block)
+    expected = reference.fir(reference.read_cf32(cf32("tone_odd")),
+                             reference.read_f32(taps_file("lowpass_long")))
+    np.testing.assert_allclose(reference.read_cf32(out), expected, rtol=FIR_RTOL, atol=FIR_ATOL)
+
+
+@pytest.mark.parametrize("impl", FIR_IMPLS)
 @pytest.mark.parametrize("name", ["tone", "tone_odd", "short"])
 def test_fir_identity_returns_the_input_exactly(tmp_path: Path, impl: str, name: str) -> None:
     # One tap of 1.0: every output is 1.0f * x[n], which float32 computes without rounding.
@@ -233,6 +244,14 @@ def test_unknown_impl_is_a_usage_error(tmp_path: Path) -> None:
     assert proc.returncode == 2
     assert "no_such_impl" in proc.stderr
     assert not (tmp_path / "y.cf32").exists()
+
+
+@pytest.mark.parametrize("block", ["0", "48", "2048", "abc"])
+def test_bad_block_size_is_a_usage_error(tmp_path: Path, block: str) -> None:
+    proc = run_expecting_failure("fir", "--in", cf32("tone"), "--taps", taps_file("lowpass"),
+                                 "--out", tmp_path / "y.cf32", "--block", block)
+    assert proc.returncode == 2
+    assert "--block" in proc.stderr
 
 
 def test_missing_input_file_is_a_runtime_error(tmp_path: Path) -> None:

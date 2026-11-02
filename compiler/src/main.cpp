@@ -45,7 +45,7 @@ void print_usage(std::ostream& out)
            "  --no-reuse  give every value its own buffer instead of reusing dead ones\n"
            "\n"
            "kernels (script and cuda backends; default naive, as in rfgpu):\n"
-           "  --fir-impl=naive|tiled|tiled_const\n"
+           "  --fir-impl=naive|tiled|tiled_const|register\n"
            "  --xcorr-impl=naive|tiled|fft\n"
            "\n"
            "--input-dir=DIR   resolve capture paths against DIR when sizing buffers for\n"

@@ -1,11 +1,13 @@
 report,kernel,duration_ms,memory_pct,compute_pct,occupancy_pct
-fir_naive_1025,fir_naive_kernel,38.391264,93.4658,93.4658,97.043541
-fir_naive_63,fir_naive_kernel,2.342784,96.048236,96.048236,89.597335
-fir_tiled_1025,fir_tiled_kernel,24.42784,98.861535,98.861535,99.418289
-fir_tiled_63,fir_tiled_kernel,1.583744,98.100074,98.100074,95.439066
-fir_tiled_const_1025,fir_tiled_const_kernel,12.287552,99.15575,99.027638,99.103125
-fir_tiled_const_63,fir_tiled_const_kernel,0.883456,95.279247,94.366796,94.254601
-magnitude,magnitude_kernel,0.34912,90.156091,18.193649,78.414638
+fir_naive_1025,fir_naive_kernel,38.401312,93.473929,93.473929,97.043574
+fir_naive_63,fir_naive_kernel,2.337472,96.060101,96.060101,89.394011
+fir_register_1025,void fir_register_kernel<8>,6.927424,44.960042,88.74804,49.26524
+fir_register_63,void fir_register_kernel<4>,0.709856,74.876421,80.496774,96.089145
+fir_tiled_1025,fir_tiled_kernel,24.398464,98.859944,98.859944,99.413681
+fir_tiled_63,fir_tiled_kernel,1.58688,98.158411,98.158411,95.59121
+fir_tiled_const_1025,fir_tiled_const_kernel,12.30064,99.13798,99.010053,99.103142
+fir_tiled_const_63,fir_tiled_const_kernel,0.9221119999999999,95.389345,94.465523,94.25308
+magnitude,magnitude_kernel,0.345888,90.572651,18.460027,76.890538
 sigflow_filter_bank,fir_naive_batched_kernel,0.010528000000000001,18.325363,18.325363,22.351481
 sigflow_filter_bank_no_fuse,fir_naive_kernel,0.009696,13.975486,13.975486,16.030027
 sigflow_filter_bank_no_fuse,fir_naive_kernel,0.005664,2.500321,0.019488,4.435927
@@ -23,12 +25,12 @@ sigflow_two_channel_no_reuse,fir_naive_batched_kernel,0.084384,86.085454,86.0854
 sigflow_two_channel_no_reuse,"void vector_fft<1024, EPT<32>, 4, 2, 70, 0, 2, 0, unsigned int, float, HostConfigPlaceholder>",0.014048,26.419297,8.074552,8.896391
 sigflow_two_channel_no_reuse,magnitude_kernel,0.00912,40.315448,10.481838,73.655405
 sigflow_two_channel_no_reuse,xcorr_naive_kernel,197.264928,96.842169,96.842169,98.327144
-xcorr_fft,"void regular_fft_factor<512, EPT<32>, 8, 0, 14, 0, 2, 1, unsigned int, float, HostConfigPlaceholder>",0.022816,32.350407,13.268072,16.972191
-xcorr_fft,"void regular_fft_factor<1024, EPT<32>, 8, 0, 14, 0, 2, 1, unsigned int, float, HostConfigPlaceholder>",0.029408000000000004,25.074333,8.392774,16.059137
-xcorr_fft,"void regular_fft_factor<512, EPT<32>, 8, 0, 14, 0, 2, 1, unsigned int, float, HostConfigPlaceholder>",0.021088000000000003,34.976287,12.86997,17.233924
-xcorr_fft,"void regular_fft_factor<1024, EPT<32>, 8, 0, 14, 0, 2, 1, unsigned int, float, HostConfigPlaceholder>",0.029632000000000002,24.893072,8.219796,16.366568
-xcorr_fft,xcorr_conj_mul_kernel,0.022112,66.172077,11.836562,81.91879
-xcorr_fft,"void regular_fft_factor<512, EPT<32>, 8, 0, 14, 0, 2, 1, unsigned int, float, HostConfigPlaceholder>",0.021632000000000002,34.05343,13.36343,16.132123
-xcorr_fft,"void regular_fft_factor<1024, EPT<32>, 8, 0, 14, 0, 2, 1, unsigned int, float, HostConfigPlaceholder>",0.031296,23.522883,8.588775,16.44593
-xcorr_naive,xcorr_naive_kernel,197.84768,96.590071,96.590071,98.361219
-xcorr_tiled,xcorr_tiled_kernel,78.608,93.889048,93.889048,98.919129
+xcorr_fft,"void regular_fft_factor<512, EPT<32>, 8, 0, 14, 0, 2, 1, unsigned int, float, HostConfigPlaceholder>",0.021568,34.170251,12.576841,16.090094
+xcorr_fft,"void regular_fft_factor<1024, EPT<32>, 8, 0, 14, 0, 2, 1, unsigned int, float, HostConfigPlaceholder>",0.03056,24.091943,8.26181,16.253833
+xcorr_fft,"void regular_fft_factor<512, EPT<32>, 8, 0, 14, 0, 2, 1, unsigned int, float, HostConfigPlaceholder>",0.021568,34.168183,12.463724,17.074076
+xcorr_fft,"void regular_fft_factor<1024, EPT<32>, 8, 0, 14, 0, 2, 1, unsigned int, float, HostConfigPlaceholder>",0.029664000000000003,24.834736,8.088944,16.503439
+xcorr_fft,xcorr_conj_mul_kernel,0.02112,69.261325,12.40011,83.707243
+xcorr_fft,"void regular_fft_factor<512, EPT<32>, 8, 0, 14, 0, 2, 1, unsigned int, float, HostConfigPlaceholder>",0.021632000000000002,33.986175,13.508935,16.321142
+xcorr_fft,"void regular_fft_factor<1024, EPT<32>, 8, 0, 14, 0, 2, 1, unsigned int, float, HostConfigPlaceholder>",0.030144,24.456972,8.737584,16.562691
+xcorr_naive,xcorr_naive_kernel,197.781504,96.602715,96.602715,98.304306
+xcorr_tiled,xcorr_tiled_kernel,78.612384,93.8841,93.8841,98.918368

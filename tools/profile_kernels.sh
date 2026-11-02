@@ -33,7 +33,7 @@ profile() {
     ncu "${section_args[@]}" --force-overwrite -o "$profiles/$name" "$@" >/dev/null
 }
 
-for impl in naive tiled tiled_const; do
+for impl in naive tiled tiled_const register; do
     profile "fir_${impl}_63" "$rfgpu" fir --in "$bench/bench_tone.cf32" \
         --taps "$fixtures/lowpass.f32" --out "$tmp/y.cf32" --impl "$impl"
     profile "fir_${impl}_1025" "$rfgpu" fir --in "$bench/bench_tone.cf32" \

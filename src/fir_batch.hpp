@@ -23,3 +23,5 @@ void fir_tiled_batched_device(const cf32* const* x, cf32* const* y, const int* n
 void fir_tiled_const_batched_device(const cf32* const* x, cf32* const* y,
                                     const int* num_samples, int count, const float* taps,
                                     int num_taps);
+void fir_register_batched_device(const cf32* const* x, cf32* const* y, const int* num_samples,
+                                 int count, const float* taps, int num_taps);

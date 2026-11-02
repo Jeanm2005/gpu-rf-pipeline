@@ -1,3 +1,3 @@
-sigflowc: error: unknown --fir-impl 'fast' (available: naive, tiled, tiled_const)
+sigflowc: error: unknown --fir-impl 'fast' (available: naive, tiled, tiled_const, register)
 sigflowc: run 'sigflowc --help' for usage
 [exit 2]

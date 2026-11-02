@@ -81,6 +81,8 @@ bool parse_fir_impl(const char* name, FirImpl& impl)
         impl = FirImpl::Tiled;
     } else if (std::strcmp(name, "tiled_const") == 0) {
         impl = FirImpl::TiledConst;
+    } else if (std::strcmp(name, "register") == 0) {
+        impl = FirImpl::Register;
     } else {
         return false;
     }
@@ -99,6 +101,9 @@ void fir_batched_device(FirImpl impl, const cf32* const* x, cf32* const* y,
         return;
     case FirImpl::TiledConst:
         fir_tiled_const_batched_device(x, y, num_samples, count, taps, num_taps);
+        return;
+    case FirImpl::Register:
+        fir_register_batched_device(x, y, num_samples, count, taps, num_taps);
         return;
     }
 }

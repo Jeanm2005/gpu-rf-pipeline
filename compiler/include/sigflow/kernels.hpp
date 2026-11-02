@@ -9,13 +9,13 @@
 namespace sigflow {
 
 struct KernelChoice {
-    std::string fir = "naive";    // naive | tiled | tiled_const
+    std::string fir = "naive";    // naive | tiled | tiled_const | register
     std::string xcorr = "naive";  // naive | tiled | fft
 };
 
 inline const std::vector<std::string>& fir_impl_names()
 {
-    static const std::vector<std::string> names = {"naive", "tiled", "tiled_const"};
+    static const std::vector<std::string> names = {"naive", "tiled", "tiled_const", "register"};
     return names;
 }
 

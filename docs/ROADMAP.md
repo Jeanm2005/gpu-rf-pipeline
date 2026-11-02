@@ -19,14 +19,9 @@ Measurements behind every completed optimization are in [`PROFILING_LOG.md`](PRO
 | CPU reference | `tools/reference.py`: spectrum, magnitude, FIR, and cross-correlation in NumPy/SciPy, checked against brute-force definitions |
 | Host scaffold | `rfgpu` CLI, `.cf32` / `.f32` I/O, error-checked CUDA and cuFFT calls, CUDA-event timing harness (`--bench`), CI |
 | Spectrum | Batched cuFFT over fixed-size frames, last frame zero-padded |
-| FIR | `naive` → `tiled` (shared-memory tile with halo) → `tiled_const` (taps in constant memory): 2.38× to 2.89× over naive |
+| FIR | `naive` → `tiled` (shared-memory tile with halo) → `tiled_const` (taps in constant memory) → `register` (4 or 8 outputs per thread from an I/Q-split tile): 2.7× (63 taps) and 5.0× (1025 taps) over naive; block-size sweep with `--block` |
 | Cross-correlation | `naive` → `tiled` (2.19×) → `fft` (cuFFT, about 1070× at 2^18 samples per channel) |
 | Profiling | Nsight Compute reports for every variant in `docs/profiles/`, figures in `docs/figures/` |
-
-Open items:
-
-- [ ] Further FIR iterations, each motivated by a profiler metric: a block-size sweep, and a
-      structure-of-arrays layout for the I and Q components.
 
 ## Stage 2: SigFlow compiler — complete
 
