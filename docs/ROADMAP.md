@@ -38,9 +38,11 @@ including batched versions of every FIR variant for fusion groups.
 
 In priority order; the order can change.
 
-1. **Streaming.** A ring buffer of pinned host memory and CUDA streams that overlap transfers
-   with compute, processing continuous chunks the way live radio data arrives, measured against
-   real-time throughput (samples per second). Then streaming execution in `sigflowc`.
+1. **Streaming.** Done in `rfgpu stream`: a ring of pinned buffers and CUDA streams that
+   overlaps upload, kernel, and download of successive chunks, bit-identical to the one-shot
+   FIR, with copy, registered (page-locked in place), and zero-copy memory modes. Up to
+   1061 MS/s end to end, 2.5× the one-shot path (profiling log, "Streaming"). Open: streaming
+   execution in `sigflowc`.
 2. **Channelizer.** A polyphase filter bank that splits a wideband capture into sub-channels.
 3. **Direction finding.** GCC-PHAT (generalized cross-correlation with phase transform) for TDOA
    (time difference of arrival) across channels, then DOA (direction of arrival) estimation for

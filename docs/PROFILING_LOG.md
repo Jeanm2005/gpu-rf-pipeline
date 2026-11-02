@@ -24,6 +24,8 @@ are the CUDA 12.8 ones that iterations 0 to 2 cite.
 
 ![FIR kernel time by block size](figures/fir_block_sweep.png)
 
+![Streaming throughput](figures/stream_throughput.png)
+
 ![Cross-correlation kernel time by variant](figures/xcorr_kernel_time.png)
 
 ![Memory throughput and achieved occupancy per kernel](figures/ncu_utilization.png)
@@ -441,6 +443,65 @@ Every FIR launch so far used 256 threads per block, a neutral starting point. `r
   pageable host memory and the CPU, kernels do not. Kernel times are unaffected (`tiled_const`
   matches the re-measurement within 6 %).
 - Data: `docs/results/rfgpu_times.csv`, `docs/results/fir_block_sweep.csv`.
+
+## Streaming — FIR in chunks through pinned memory and CUDA streams (`rfgpu stream`)
+
+Stage 3's first extension. The FIR is two copies around a sub-millisecond kernel (iteration
+4: 0.6 ms of kernel against about 40 ms of transfers for 2^24 samples), so the question is
+how much of the copying overlapping and pinned memory can remove. Measured on 2026-11-02 with
+`tools/make_figures.py collect-stream`.
+
+- GPU / driver / CUDA version: NVIDIA GeForce RTX 5080 Laptop GPU (compute capability 12.0) /
+  617.42 / 13.4, PCIe Gen 5 x8, on AC power
+- Input size and parameters: `bench_tone.cf32`, 2^24 samples, `--impl register`, 63 and 1025
+  taps. `--bench 20`, 3 warm-up passes, five interleaved rounds (zero-copy: 3 runs, in a pass
+  of its own after the rounds, see below). "One-shot" is `rfgpu fir`: upload + kernel +
+  download from pageable memory, CUDA events. Streamed times are wall clock from the first
+  chunk to the last output in the host array. Median of the round means, with their range.
+
+| Configuration | 63 taps | 1025 taps |
+|---|---|---|
+| One-shot, pageable | 39.8 ms (421 MS/s) | 41.4 ms (405 MS/s) |
+| Ring, chunk 2^20, depth 1 (serial) | 64.3 ms | 68.7 ms |
+| Ring, chunk 2^20, depth 2 / 3 / 4 | 46.5 / 45.2 / 44.8 ms | 48.7 / 44.2 / 43.1 ms |
+| Ring, depth 3, chunk 2^16 / 2^18 / 2^22 | 63.3 / 48.4 / 23.7 ms | 70.4 / 44.6 / 25.6 ms |
+| Registered, chunk 2^20, depth 1 | 20.6 ms | 27.4 ms |
+| Registered, chunk 2^20, depth 3 | 19.9 ms (843 MS/s) | 25.3 ms (662 MS/s) |
+| Registered, chunk 2^22, depth 3 | **15.8 ms (1061 MS/s)** | **21.6 ms (776 MS/s)** |
+| Zero-copy, chunk 2^20, depth 3 | 6026 ms | 434 ms |
+
+![Streaming throughput](figures/stream_throughput.png)
+
+- "Ring" copies each chunk on the host from the input array into a pinned slot, uploads it
+  asynchronously, and copies the output back the same way. "Registered" page-locks the input
+  and output arrays themselves (`cudaHostRegister`) and copies straight between them and the
+  GPU: the case of a receiver that writes into pinned memory. "Zero-copy" lets the kernel read
+  and write mapped pinned memory over PCIe.
+- Achieved memory bandwidth and occupancy: the kernels are those of iteration 4; what changes
+  here is the copies.
+- Top bottleneck: the host. With the ring, two single-threaded `memcpy`s through the pinned
+  slots cost about what the overlap saves: at 2^20-sample chunks, depth 2 to 4 beats the serial
+  ring by 1.4× to 1.6× but not the one-shot path, whose driver-staged pageable copies are as
+  fast. Only with 2^22-sample chunks does the ring pull ahead (1.7× and 1.6×). Without
+  host copies (registered), the GPU side alone is 1.6× to 2.5× faster than one-shot, and
+  overlap adds only 1.03× to 1.08× over the serial registered ring: the kernel is so short that the
+  two copy directions are what overlaps.
+- Chunk size: 2^16-sample chunks (512 KB) pay per-chunk launch and synchronization overhead;
+  2^22 (32 MB) is the fastest here, which for a real receiver means about 4 s of latency at
+  1 MS/s. Throughput and latency trade off directly.
+- Real time: at the best setting the GPU filters 1061 MS/s with 63 taps and 776 MS/s with 1025,
+  1000× the fixtures' 1 MS/s and above any single SDR front end's sample rate (tens to a few
+  hundred MS/s).
+- Zero-copy is the slowest by far on a discrete GPU: 300× slower with 63 taps, where the
+  kernel writes 4 outputs per thread (8-byte writes 32 bytes apart, which PCIe cannot combine),
+  and 17× with 1025 taps (8 per thread); both against registered memory at the same chunk size. It is meant for Jetson, where the memory is shared
+  (`docs/JETSON.md`). A first collection interleaved it with the other configurations, and
+  every configuration timed after the first zero-copy runs became about 2× slower until the
+  session ended, the one-shot path included; that run was discarded and zero-copy is now
+  timed after everything else.
+- What I changed and why: Stage 3, streaming. Output is bit-identical to `rfgpu fir` for every
+  variant, chunk size, depth, and memory mode (`tests/test_pipeline.py`).
+- Data: `docs/results/stream.csv`.
 
 ## SigFlow buffer reuse — `two_channel.sf` — CUDA backend, reuse against `--no-reuse`
 

@@ -4,6 +4,7 @@
     python tools/make_figures.py collect-ncu      # needs ncu (reads saved reports; no GPU)
     python tools/make_figures.py collect-times    # needs a GPU, build/rfgpu, out/bench inputs
     python tools/make_figures.py collect-sweep    # FIR block-size sweep; same needs
+    python tools/make_figures.py collect-stream   # rfgpu stream against rfgpu fir; same needs
     python tools/make_figures.py plot             # needs only matplotlib and docs/results/
 
 The data files are committed, so `plot` reproduces every figure without profiling again:
@@ -11,6 +12,7 @@ The data files are committed, so `plot` reproduces every figure without profilin
   docs/results/ncu_metrics.csv     per-kernel Nsight Compute metrics from docs/profiles/*.ncu-repz
   docs/results/rfgpu_times.csv     CUDA-event times for every rfgpu variant, one row per round
   docs/results/fir_block_sweep.csv CUDA-event FIR times for each variant and --block
+  docs/results/stream.csv          end-to-end FIR time, one-shot and streamed, per round
   docs/results/sigflow_*.json      compiler/tools/measure.py summaries (--json-out)
 
 Every figure is written twice, NAME.png for light backgrounds and NAME-dark.png for dark ones,
@@ -60,6 +62,28 @@ RFGPU_CONFIGS = [
 FIR_VARIANTS = ["naive", "tiled", "tiled_const", "register"]
 SWEEP_BLOCKS = [64, 128, 256, 512, 1024]
 SWEEP_TAPS = {"63": "lowpass.f32", "1025": "lowpass_long.f32"}
+
+# rfgpu stream configurations: (label, chunk, depth, memory). The one-shot `rfgpu fir` baseline
+# is added by collect_stream as "one-shot (pageable)".
+STREAM_CONFIGS = [
+    ("chunk 2^20, depth 1", 1 << 20, 1, "copy"),
+    ("chunk 2^20, depth 2", 1 << 20, 2, "copy"),
+    ("chunk 2^20, depth 3", 1 << 20, 3, "copy"),
+    ("chunk 2^20, depth 4", 1 << 20, 4, "copy"),
+    ("chunk 2^16, depth 3", 1 << 16, 3, "copy"),
+    ("chunk 2^18, depth 3", 1 << 18, 3, "copy"),
+    ("chunk 2^22, depth 3", 1 << 22, 3, "copy"),
+    ("chunk 2^20, depth 1, registered", 1 << 20, 1, "registered"),
+    ("chunk 2^20, depth 3, registered", 1 << 20, 3, "registered"),
+    ("chunk 2^22, depth 3, registered", 1 << 22, 3, "registered"),
+    ("chunk 2^20, depth 3, zero-copy", 1 << 20, 3, "zero-copy"),
+]
+# Zero-copy runs are timed in a pass of their own after the interleaved rounds: they keep PCIe
+# busy with small writes for minutes, and every configuration timed after them in the same
+# session ran about 2x slower (docs/PROFILING_LOG.md, streaming).
+ZERO_COPY_RUNS = 3
+STREAM_TAPS = {"63": "lowpass.f32", "1025": "lowpass_long.f32"}
+ONE_SHOT = "one-shot (pageable)"
 
 
 # --- collect -------------------------------------------------------------------------------
@@ -143,6 +167,56 @@ def collect_sweep(rfgpu: Path, bench_dir: Path, rounds: int, runs: int, warmup: 
                           f"{report['kernel_ms']['mean']:.4f} ms")
     RESULTS.mkdir(parents=True, exist_ok=True)
     with open(RESULTS / "fir_block_sweep.csv", "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def collect_stream(rfgpu: Path, bench_dir: Path, rounds: int, runs: int, warmup: int) -> None:
+    """End-to-end time of the register FIR on bench_tone: `rfgpu fir` (upload + kernel +
+    download from pageable memory, CUDA events) against every STREAM_CONFIGS entry (wall clock
+    from the first chunk to the last output, host copies into the ring included)."""
+    fixtures = ROOT / "tests" / "fixtures"
+    out = ROOT / "out"
+    out.mkdir(exist_ok=True)
+    x = str(bench_dir / "bench_tone.cf32")
+    rows = []
+    for round_index in range(rounds):  # interleaved, as in collect_times
+        for taps, taps_file in STREAM_TAPS.items():
+            common = ["--in", x, "--taps", str(fixtures / taps_file),
+                      "--out", str(out / "figures_tmp.cf32"), "--impl", "register",
+                      "--bench", str(runs), "--warmup", str(warmup)]
+            report = json.loads(run([str(rfgpu), "fir", *common]))
+            total = sum(report[k]["mean"] for k in ("h2d_ms", "kernel_ms", "d2h_ms"))
+            rows.append({"config": ONE_SHOT, "taps": taps, "round": round_index,
+                         "gpu": report["gpu"], "total_ms": total,
+                         "kernel_ms": report["kernel_ms"]["mean"],
+                         "msps": report["num_in"] / (total * 1e3)})
+            for label, chunk, depth, memory in STREAM_CONFIGS:
+                if memory == "zero-copy":
+                    continue
+                report = json.loads(run([str(rfgpu), "stream", *common, "--chunk", str(chunk),
+                                         "--depth", str(depth), "--memory", memory]))
+                rows.append({"config": label, "taps": taps, "round": round_index,
+                             "gpu": report["gpu"], "total_ms": report["total_ms"]["mean"],
+                             "kernel_ms": "", "msps": report["msps"]})
+            print(f"round {round_index}: {taps} taps done")
+    for round_index in range(rounds):
+        for taps, taps_file in STREAM_TAPS.items():
+            for label, chunk, depth, memory in STREAM_CONFIGS:
+                if memory != "zero-copy":
+                    continue
+                report = json.loads(run([
+                    str(rfgpu), "stream", "--in", x, "--taps", str(fixtures / taps_file),
+                    "--out", str(out / "figures_tmp.cf32"), "--impl", "register",
+                    "--bench", str(ZERO_COPY_RUNS), "--warmup", "1", "--chunk", str(chunk),
+                    "--depth", str(depth), "--memory", memory]))
+                rows.append({"config": label, "taps": taps, "round": round_index,
+                             "gpu": report["gpu"], "total_ms": report["total_ms"]["mean"],
+                             "kernel_ms": "", "msps": report["msps"]})
+        print(f"zero-copy round {round_index} done")
+    RESULTS.mkdir(parents=True, exist_ok=True)
+    with open(RESULTS / "stream.csv", "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=list(rows[0]))
         writer.writeheader()
         writer.writerows(rows)
@@ -269,6 +343,30 @@ def plot_sweep(plt, theme_name: str, rows: list[dict]) -> None:
     plt.close(fig)
 
 
+def plot_stream(plt, theme_name: str, rows: list[dict]) -> None:
+    """Throughput (million samples per second) of each streaming configuration, per filter."""
+    theme = THEMES[theme_name]
+    labels = [ONE_SHOT] + [c[0] for c in STREAM_CONFIGS]
+    fig, axes = plt.subplots(1, 2, figsize=(9.6, 3.6), facecolor=theme["surface"])
+    for ax, taps in zip(axes, STREAM_TAPS):
+        stats = []
+        for label in labels:
+            values = [float(r["msps"]) for r in rows if r["config"] == label and r["taps"] == taps]
+            stats.append((statistics.median(values), min(values), max(values)))
+        bar_panel(ax, theme, labels, [s[0] for s in stats], [(s[1], s[2]) for s in stats],
+                  theme["series"][0], "MS/s", fmt="{:.0f}")
+        ax.set_title(f"{taps} taps", color=theme["text"], fontsize=10, loc="left")
+        ax.set_xlabel("throughput (million samples per second)", color=theme["muted"],
+                      fontsize=9)
+    axes[1].set_yticklabels([])
+    fig.suptitle("Register FIR on 2^24 samples, end to end: one shot against streamed "
+                 "(median of 5 rounds; line: range)",
+                 color=theme["text"], fontsize=11, x=0.01, ha="left")
+    fig.tight_layout()
+    save(fig, "stream_throughput", theme_name)
+    plt.close(fig)
+
+
 def plot_xcorr(plt, theme_name: str, times: dict) -> None:
     theme = THEMES[theme_name]
     fig, ax = plt.subplots(figsize=(9.6, 2.0), facecolor=theme["surface"])
@@ -379,8 +477,11 @@ def plot() -> None:
         metrics = list(csv.DictReader(f))
     with open(RESULTS / "fir_block_sweep.csv") as f:
         sweep = list(csv.DictReader(f))
+    with open(RESULTS / "stream.csv") as f:
+        stream = list(csv.DictReader(f))
     summaries = [json.loads(p.read_text()) for p in sorted(RESULTS.glob("sigflow_*.json"))]
     for theme_name in THEMES:
+        plot_stream(plt, theme_name, stream)
         plot_fir(plt, theme_name, times)
         plot_sweep(plt, theme_name, sweep)
         plot_xcorr(plt, theme_name, times)
@@ -395,7 +496,7 @@ def main() -> None:
     sub = parser.add_subparsers(dest="command", required=True)
     ncu = sub.add_parser("collect-ncu")
     ncu.add_argument("--ncu", default="ncu")
-    for name in ("collect-times", "collect-sweep"):
+    for name in ("collect-times", "collect-sweep", "collect-stream"):
         times = sub.add_parser(name)
         times.add_argument("--rfgpu", type=Path,
                            default=Path(os.environ.get("RFGPU_BIN", ROOT / "build" / "rfgpu")))
@@ -412,6 +513,8 @@ def main() -> None:
         collect_times(args.rfgpu, args.bench_dir, args.rounds, args.runs, args.warmup)
     elif args.command == "collect-sweep":
         collect_sweep(args.rfgpu, args.bench_dir, args.rounds, args.runs, args.warmup)
+    elif args.command == "collect-stream":
+        collect_stream(args.rfgpu, args.bench_dir, args.rounds, args.runs, args.warmup)
     else:
         plot()
 

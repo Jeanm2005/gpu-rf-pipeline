@@ -305,3 +305,54 @@ def test_unsupported_sigmf_is_a_runtime_error(tmp_path: Path, meta: dict, messag
                                  "--out", tmp_path / "m.f32")
     assert proc.returncode == 1
     assert message in proc.stderr
+
+
+# --- Streaming -----------------------------------------------------------------------------
+# rfgpu stream filters in chunks, each uploaded with num_taps - 1 samples of history, so every
+# output sees the same inputs in the same order as `rfgpu fir`: results must be bit-identical.
+
+@pytest.mark.parametrize("impl", FIR_IMPLS)
+@pytest.mark.parametrize("chunk,depth", [
+    (1000, 1),     # shorter than the 1025-tap filter's history, serial
+    (1000, 3),
+    (4096, 2),     # divides the 65536-sample input exactly
+    (100000, 3),   # one chunk holds the whole input
+])
+@pytest.mark.parametrize("memory", ["copy", "registered", "zero-copy"])
+def test_stream_matches_fir_exactly(tmp_path: Path, impl: str, chunk: int, depth: int,
+                                    memory: str) -> None:
+    rfgpu("fir", "--in", cf32("tone"), "--taps", taps_file("lowpass_long"),
+          "--out", tmp_path / "fir.cf32", "--impl", impl)
+    rfgpu("stream", "--in", cf32("tone"), "--taps", taps_file("lowpass_long"),
+          "--out", tmp_path / "stream.cf32", "--impl", impl, "--chunk", chunk, "--depth", depth,
+          "--memory", memory)
+    assert (tmp_path / "fir.cf32").read_bytes() == (tmp_path / "stream.cf32").read_bytes()
+
+
+def test_stream_of_short_input(tmp_path: Path) -> None:
+    rfgpu("stream", "--in", cf32("short"), "--taps", taps_file("lowpass"),
+          "--out", tmp_path / "y.cf32", "--chunk", 3)
+    expected = reference.fir(reference.read_cf32(cf32("short")),
+                             reference.read_f32(taps_file("lowpass")))
+    np.testing.assert_allclose(reference.read_cf32(tmp_path / "y.cf32"), expected,
+                               rtol=FIR_RTOL, atol=FIR_ATOL)
+
+
+def test_stream_bench_reports_throughput_against_the_sample_rate(tmp_path: Path) -> None:
+    proc = rfgpu("stream", "--in", cf32("tone"), "--taps", taps_file("lowpass"),
+                 "--out", tmp_path / "y.cf32", "--chunk", 8192, "--bench", 10)
+    report = json.loads(proc.stdout)
+    meta = json.loads((FIXTURES / "tone.json").read_text())
+    assert report["op"] == "stream" and report["chunks"] == 8 and report["runs"] == 10
+    assert report["sample_rate"] == meta["sample_rate"]
+    assert report["msps"] > 0
+    assert report["realtime_factor"] == pytest.approx(
+        report["msps"] * 1e6 / meta["sample_rate"], rel=1e-3)
+
+
+@pytest.mark.parametrize("args", [["--chunk", "0"], ["--depth", "0"], ["--memory", "disk"]])
+def test_bad_stream_options_are_usage_errors(tmp_path: Path, args: list[str]) -> None:
+    proc = run_expecting_failure("stream", "--in", cf32("tone"), "--taps", taps_file("lowpass"),
+                                 "--out", tmp_path / "y.cf32", *args)
+    assert proc.returncode == 2
+

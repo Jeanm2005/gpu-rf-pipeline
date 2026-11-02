@@ -1,0 +1,121 @@
+config,taps,round,gpu,total_ms,kernel_ms,msps
+one-shot (pageable),63,0,NVIDIA GeForce RTX 5080 Laptop GPU,33.307371,0.597987,503.70880367591894
+"chunk 2^20, depth 1",63,0,NVIDIA GeForce RTX 5080 Laptop GPU,64.250856,,261.121
+"chunk 2^20, depth 2",63,0,NVIDIA GeForce RTX 5080 Laptop GPU,35.773748,,468.981
+"chunk 2^20, depth 3",63,0,NVIDIA GeForce RTX 5080 Laptop GPU,38.646385,,434.121
+"chunk 2^20, depth 4",63,0,NVIDIA GeForce RTX 5080 Laptop GPU,37.591061,,446.309
+"chunk 2^16, depth 3",63,0,NVIDIA GeForce RTX 5080 Laptop GPU,55.541086,,302.069
+"chunk 2^18, depth 3",63,0,NVIDIA GeForce RTX 5080 Laptop GPU,43.919181,,382.002
+"chunk 2^22, depth 3",63,0,NVIDIA GeForce RTX 5080 Laptop GPU,22.003847,,762.467
+"chunk 2^20, depth 1, registered",63,0,NVIDIA GeForce RTX 5080 Laptop GPU,20.566266,,815.764
+"chunk 2^20, depth 3, registered",63,0,NVIDIA GeForce RTX 5080 Laptop GPU,19.897842,,843.168
+"chunk 2^22, depth 3, registered",63,0,NVIDIA GeForce RTX 5080 Laptop GPU,16.222942,,1034.166
+one-shot (pageable),1025,0,NVIDIA GeForce RTX 5080 Laptop GPU,41.377357,4.637349,405.468527146381
+"chunk 2^20, depth 1",1025,0,NVIDIA GeForce RTX 5080 Laptop GPU,65.151463,,257.511
+"chunk 2^20, depth 2",1025,0,NVIDIA GeForce RTX 5080 Laptop GPU,41.145892,,407.749
+"chunk 2^20, depth 3",1025,0,NVIDIA GeForce RTX 5080 Laptop GPU,44.16218,,379.9
+"chunk 2^20, depth 4",1025,0,NVIDIA GeForce RTX 5080 Laptop GPU,46.890246,,357.798
+"chunk 2^16, depth 3",1025,0,NVIDIA GeForce RTX 5080 Laptop GPU,62.418251,,268.787
+"chunk 2^18, depth 3",1025,0,NVIDIA GeForce RTX 5080 Laptop GPU,44.589236,,376.262
+"chunk 2^22, depth 3",1025,0,NVIDIA GeForce RTX 5080 Laptop GPU,25.569006,,656.154
+"chunk 2^20, depth 1, registered",1025,0,NVIDIA GeForce RTX 5080 Laptop GPU,27.382355,,612.702
+"chunk 2^20, depth 3, registered",1025,0,NVIDIA GeForce RTX 5080 Laptop GPU,26.197566,,640.411
+"chunk 2^22, depth 3, registered",1025,0,NVIDIA GeForce RTX 5080 Laptop GPU,21.936021,,764.825
+one-shot (pageable),63,1,NVIDIA GeForce RTX 5080 Laptop GPU,35.539263,0.609645,472.0755182795997
+"chunk 2^20, depth 1",63,1,NVIDIA GeForce RTX 5080 Laptop GPU,59.224421,,283.282
+"chunk 2^20, depth 2",63,1,NVIDIA GeForce RTX 5080 Laptop GPU,55.435543,,302.644
+"chunk 2^20, depth 3",63,1,NVIDIA GeForce RTX 5080 Laptop GPU,51.975875,,322.789
+"chunk 2^20, depth 4",63,1,NVIDIA GeForce RTX 5080 Laptop GPU,46.895335,,357.759
+"chunk 2^16, depth 3",63,1,NVIDIA GeForce RTX 5080 Laptop GPU,63.253609,,265.237
+"chunk 2^18, depth 3",63,1,NVIDIA GeForce RTX 5080 Laptop GPU,50.799864,,330.261
+"chunk 2^22, depth 3",63,1,NVIDIA GeForce RTX 5080 Laptop GPU,24.794293,,676.656
+"chunk 2^20, depth 1, registered",63,1,NVIDIA GeForce RTX 5080 Laptop GPU,20.471177,,819.553
+"chunk 2^20, depth 3, registered",63,1,NVIDIA GeForce RTX 5080 Laptop GPU,20.504251,,818.231
+"chunk 2^22, depth 3, registered",63,1,NVIDIA GeForce RTX 5080 Laptop GPU,15.811849,,1061.053
+one-shot (pageable),1025,1,NVIDIA GeForce RTX 5080 Laptop GPU,46.872305,4.977166,357.93452018201367
+"chunk 2^20, depth 1",1025,1,NVIDIA GeForce RTX 5080 Laptop GPU,68.678096,,244.288
+"chunk 2^20, depth 2",1025,1,NVIDIA GeForce RTX 5080 Laptop GPU,50.126654,,334.697
+"chunk 2^20, depth 3",1025,1,NVIDIA GeForce RTX 5080 Laptop GPU,46.617379,,359.892
+"chunk 2^20, depth 4",1025,1,NVIDIA GeForce RTX 5080 Laptop GPU,47.370575,,354.17
+"chunk 2^16, depth 3",1025,1,NVIDIA GeForce RTX 5080 Laptop GPU,70.441041,,238.174
+"chunk 2^18, depth 3",1025,1,NVIDIA GeForce RTX 5080 Laptop GPU,52.614512,,318.871
+"chunk 2^22, depth 3",1025,1,NVIDIA GeForce RTX 5080 Laptop GPU,26.0243,,644.675
+"chunk 2^20, depth 1, registered",1025,1,NVIDIA GeForce RTX 5080 Laptop GPU,27.628384,,607.246
+"chunk 2^20, depth 3, registered",1025,1,NVIDIA GeForce RTX 5080 Laptop GPU,25.127468,,667.684
+"chunk 2^22, depth 3, registered",1025,1,NVIDIA GeForce RTX 5080 Laptop GPU,20.871276,,803.842
+one-shot (pageable),63,2,NVIDIA GeForce RTX 5080 Laptop GPU,39.844706,0.536346,421.06512217708416
+"chunk 2^20, depth 1",63,2,NVIDIA GeForce RTX 5080 Laptop GPU,58.523711,,286.674
+"chunk 2^20, depth 2",63,2,NVIDIA GeForce RTX 5080 Laptop GPU,46.464067,,361.079
+"chunk 2^20, depth 3",63,2,NVIDIA GeForce RTX 5080 Laptop GPU,44.184477,,379.708
+"chunk 2^20, depth 4",63,2,NVIDIA GeForce RTX 5080 Laptop GPU,44.820401,,374.321
+"chunk 2^16, depth 3",63,2,NVIDIA GeForce RTX 5080 Laptop GPU,68.527683,,244.824
+"chunk 2^18, depth 3",63,2,NVIDIA GeForce RTX 5080 Laptop GPU,52.622179,,318.824
+"chunk 2^22, depth 3",63,2,NVIDIA GeForce RTX 5080 Laptop GPU,23.656651,,709.197
+"chunk 2^20, depth 1, registered",63,2,NVIDIA GeForce RTX 5080 Laptop GPU,22.67397,,739.933
+"chunk 2^20, depth 3, registered",63,2,NVIDIA GeForce RTX 5080 Laptop GPU,21.342045,,786.111
+"chunk 2^22, depth 3, registered",63,2,NVIDIA GeForce RTX 5080 Laptop GPU,15.594079,,1075.871
+one-shot (pageable),1025,2,NVIDIA GeForce RTX 5080 Laptop GPU,40.675434,4.95472,412.46556828379505
+"chunk 2^20, depth 1",1025,2,NVIDIA GeForce RTX 5080 Laptop GPU,71.537901,,234.522
+"chunk 2^20, depth 2",1025,2,NVIDIA GeForce RTX 5080 Laptop GPU,48.723333,,344.336
+"chunk 2^20, depth 3",1025,2,NVIDIA GeForce RTX 5080 Laptop GPU,49.811078,,336.817
+"chunk 2^20, depth 4",1025,2,NVIDIA GeForce RTX 5080 Laptop GPU,43.110476,,389.168
+"chunk 2^16, depth 3",1025,2,NVIDIA GeForce RTX 5080 Laptop GPU,68.006883,,246.699
+"chunk 2^18, depth 3",1025,2,NVIDIA GeForce RTX 5080 Laptop GPU,50.148345,,334.552
+"chunk 2^22, depth 3",1025,2,NVIDIA GeForce RTX 5080 Laptop GPU,25.737731,,651.853
+"chunk 2^20, depth 1, registered",1025,2,NVIDIA GeForce RTX 5080 Laptop GPU,28.319729,,592.421
+"chunk 2^20, depth 3, registered",1025,2,NVIDIA GeForce RTX 5080 Laptop GPU,26.199864,,640.355
+"chunk 2^22, depth 3, registered",1025,2,NVIDIA GeForce RTX 5080 Laptop GPU,21.609679,,776.375
+one-shot (pageable),63,3,NVIDIA GeForce RTX 5080 Laptop GPU,43.948892,0.534413,381.7437763846242
+"chunk 2^20, depth 1",63,3,NVIDIA GeForce RTX 5080 Laptop GPU,66.113229,,253.765
+"chunk 2^20, depth 2",63,3,NVIDIA GeForce RTX 5080 Laptop GPU,53.624056,,312.867
+"chunk 2^20, depth 3",63,3,NVIDIA GeForce RTX 5080 Laptop GPU,49.660654,,337.837
+"chunk 2^20, depth 4",63,3,NVIDIA GeForce RTX 5080 Laptop GPU,47.036995,,356.681
+"chunk 2^16, depth 3",63,3,NVIDIA GeForce RTX 5080 Laptop GPU,64.018029,,262.07
+"chunk 2^18, depth 3",63,3,NVIDIA GeForce RTX 5080 Laptop GPU,48.407271,,346.585
+"chunk 2^22, depth 3",63,3,NVIDIA GeForce RTX 5080 Laptop GPU,24.739407,,678.158
+"chunk 2^20, depth 1, registered",63,3,NVIDIA GeForce RTX 5080 Laptop GPU,20.380127,,823.214
+"chunk 2^20, depth 3, registered",63,3,NVIDIA GeForce RTX 5080 Laptop GPU,18.373395,,913.126
+"chunk 2^22, depth 3, registered",63,3,NVIDIA GeForce RTX 5080 Laptop GPU,15.345423,,1093.304
+one-shot (pageable),1025,3,NVIDIA GeForce RTX 5080 Laptop GPU,42.273875,4.960835,396.86960327152406
+"chunk 2^20, depth 1",1025,3,NVIDIA GeForce RTX 5080 Laptop GPU,69.001067,,243.144
+"chunk 2^20, depth 2",1025,3,NVIDIA GeForce RTX 5080 Laptop GPU,51.762108,,324.122
+"chunk 2^20, depth 3",1025,3,NVIDIA GeForce RTX 5080 Laptop GPU,43.814002,,382.919
+"chunk 2^20, depth 4",1025,3,NVIDIA GeForce RTX 5080 Laptop GPU,38.818557,,432.196
+"chunk 2^16, depth 3",1025,3,NVIDIA GeForce RTX 5080 Laptop GPU,72.736373,,230.658
+"chunk 2^18, depth 3",1025,3,NVIDIA GeForce RTX 5080 Laptop GPU,41.703298,,402.3
+"chunk 2^22, depth 3",1025,3,NVIDIA GeForce RTX 5080 Laptop GPU,24.575616,,682.677
+"chunk 2^20, depth 1, registered",1025,3,NVIDIA GeForce RTX 5080 Laptop GPU,25.514447,,657.557
+"chunk 2^20, depth 3, registered",1025,3,NVIDIA GeForce RTX 5080 Laptop GPU,25.337691,,662.145
+"chunk 2^22, depth 3, registered",1025,3,NVIDIA GeForce RTX 5080 Laptop GPU,20.941194,,801.159
+one-shot (pageable),63,4,NVIDIA GeForce RTX 5080 Laptop GPU,41.238463,0.616301,406.83417323288694
+"chunk 2^20, depth 1",63,4,NVIDIA GeForce RTX 5080 Laptop GPU,65.46075,,256.294
+"chunk 2^20, depth 2",63,4,NVIDIA GeForce RTX 5080 Laptop GPU,36.268962,,462.578
+"chunk 2^20, depth 3",63,4,NVIDIA GeForce RTX 5080 Laptop GPU,45.18036,,371.339
+"chunk 2^20, depth 4",63,4,NVIDIA GeForce RTX 5080 Laptop GPU,44.193118,,379.634
+"chunk 2^16, depth 3",63,4,NVIDIA GeForce RTX 5080 Laptop GPU,62.047502,,270.393
+"chunk 2^18, depth 3",63,4,NVIDIA GeForce RTX 5080 Laptop GPU,37.955735,,442.021
+"chunk 2^22, depth 3",63,4,NVIDIA GeForce RTX 5080 Laptop GPU,23.221102,,722.499
+"chunk 2^20, depth 1, registered",63,4,NVIDIA GeForce RTX 5080 Laptop GPU,21.869667,,767.145
+"chunk 2^20, depth 3, registered",63,4,NVIDIA GeForce RTX 5080 Laptop GPU,19.340077,,867.484
+"chunk 2^22, depth 3, registered",63,4,NVIDIA GeForce RTX 5080 Laptop GPU,17.924209,,936.009
+one-shot (pageable),1025,4,NVIDIA GeForce RTX 5080 Laptop GPU,36.185396000000004,4.662365,463.64605212555904
+"chunk 2^20, depth 1",1025,4,NVIDIA GeForce RTX 5080 Laptop GPU,60.544369,,277.106
+"chunk 2^20, depth 2",1025,4,NVIDIA GeForce RTX 5080 Laptop GPU,39.584664,,423.831
+"chunk 2^20, depth 3",1025,4,NVIDIA GeForce RTX 5080 Laptop GPU,44.10303,,380.41
+"chunk 2^20, depth 4",1025,4,NVIDIA GeForce RTX 5080 Laptop GPU,38.865758,,431.671
+"chunk 2^16, depth 3",1025,4,NVIDIA GeForce RTX 5080 Laptop GPU,72.557422,,231.227
+"chunk 2^18, depth 3",1025,4,NVIDIA GeForce RTX 5080 Laptop GPU,44.564474,,376.471
+"chunk 2^22, depth 3",1025,4,NVIDIA GeForce RTX 5080 Laptop GPU,25.056515,,669.575
+"chunk 2^20, depth 1, registered",1025,4,NVIDIA GeForce RTX 5080 Laptop GPU,25.015071,,670.684
+"chunk 2^20, depth 3, registered",1025,4,NVIDIA GeForce RTX 5080 Laptop GPU,25.219692,,665.243
+"chunk 2^22, depth 3, registered",1025,4,NVIDIA GeForce RTX 5080 Laptop GPU,22.117428,,758.552
+"chunk 2^20, depth 3, zero-copy",63,0,NVIDIA GeForce RTX 5080 Laptop GPU,6025.6092,,2.784
+"chunk 2^20, depth 3, zero-copy",1025,0,NVIDIA GeForce RTX 5080 Laptop GPU,420.87456,,39.863
+"chunk 2^20, depth 3, zero-copy",63,1,NVIDIA GeForce RTX 5080 Laptop GPU,6271.919892,,2.675
+"chunk 2^20, depth 3, zero-copy",1025,1,NVIDIA GeForce RTX 5080 Laptop GPU,434.864116,,38.58
+"chunk 2^20, depth 3, zero-copy",63,2,NVIDIA GeForce RTX 5080 Laptop GPU,6273.12949,,2.674
+"chunk 2^20, depth 3, zero-copy",1025,2,NVIDIA GeForce RTX 5080 Laptop GPU,467.335486,,35.9
+"chunk 2^20, depth 3, zero-copy",63,3,NVIDIA GeForce RTX 5080 Laptop GPU,5585.46372,,3.004
+"chunk 2^20, depth 3, zero-copy",1025,3,NVIDIA GeForce RTX 5080 Laptop GPU,421.842207,,39.771
+"chunk 2^20, depth 3, zero-copy",63,4,NVIDIA GeForce RTX 5080 Laptop GPU,5776.011533,,2.905
+"chunk 2^20, depth 3, zero-copy",1025,4,NVIDIA GeForce RTX 5080 Laptop GPU,433.837661,,38.672

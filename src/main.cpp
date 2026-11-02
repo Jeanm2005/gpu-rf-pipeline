@@ -4,6 +4,7 @@
 //   rfgpu fir       --in x.cf32 --taps h.f32 --out y.cf32 [--impl naive] [--block 256]
 //   rfgpu xcorr     --a a.cf32 --b b.cf32 --out r.cf32 [--impl naive]
 //   rfgpu magnitude --in x.cf32 --out mag.f32
+//   rfgpu stream    --in x.cf32 --taps h.f32 --out y.cf32 [--chunk N] [--depth D]
 //   rfgpu info
 //
 // Exit status: 0 on success, 1 on a runtime error (file, CUDA, cuFFT), 2 on a usage error.
@@ -12,8 +13,10 @@
 #include "check.hpp"
 #include "io.hpp"
 #include "ops.hpp"
+#include "stream.hpp"
 
 #include <climits>
+#include <cmath>
 #include <cstdio>
 #include <exception>
 #include <map>
@@ -58,6 +61,10 @@ void print_usage()
         "  rfgpu fir       --in X.cf32 --taps H.f32 --out OUT.cf32 [--impl NAME] [--block B]\n"
         "  rfgpu xcorr     --a A.cf32 --b B.cf32 --out OUT.cf32 [--impl NAME]\n"
         "  rfgpu magnitude --in X.cf32 --out OUT.f32\n"
+        "  rfgpu stream    --in X.cf32 --taps H.f32 --out OUT.cf32 [--impl NAME] [--chunk N]\n"
+        "                  [--depth D] [--memory copy|registered|zero-copy] [--rate HZ]\n"
+        "                  FIR in chunks through a ring of D pinned buffers and CUDA streams\n"
+        "                  (defaults: tiled, 1048576, 3, copy)\n"
         "  rfgpu info     print the GPU, CUDA versions, and implementations as JSON\n"
         "\n"
         "Every .cf32 input may also be a SigMF recording (NAME.sigmf-meta or NAME.sigmf-data)\n"
@@ -292,6 +299,78 @@ int run_xcorr(int argc, char** argv)
     return 0;
 }
 
+// Streaming FIR (stream.hpp). Without --bench: one pass, written to --out. With --bench N: W
+// untimed passes, then N timed ones, reported as JSON with the throughput against --rate (or
+// the sample rate from the input's metadata, when it has any).
+int run_stream(int argc, char** argv)
+{
+    const Args args(argc, argv, {"--in", "--taps", "--out", "--impl", "--chunk", "--depth",
+                                 "--memory", "--rate", "--bench", "--warmup"});
+    args.required("--out");
+    StreamConfig config;
+    const std::string impl = args.optional("--impl", "tiled");
+    if (!parse_fir_impl(impl.c_str(), config.impl)) {
+        throw UsageError("unknown --impl '" + impl + "' for stream (available: "
+                         + impl_names(fir_impls(), ", ") + ")");
+    }
+    const std::string memory = args.optional("--memory", "copy");
+    if (!parse_stream_memory(memory, config.memory)) {
+        throw UsageError("unknown --memory '" + memory
+                         + "' (available: copy, registered, zero-copy)");
+    }
+    config.chunk = args.integer("--chunk", config.chunk, 1);
+    config.depth = args.integer("--depth", config.depth, 1);
+    const BenchConfig bench = bench_config(args);
+
+    const std::vector<cf32> x = read_cf32(args.required("--in"));
+    const std::vector<float> taps = read_f32(args.required("--taps"));
+    if (taps.empty()) {
+        throw std::runtime_error(args.required("--taps") + ": no taps");
+    }
+    require_int_range(x.size(), "stream input");
+    require_int_range(static_cast<std::size_t>(config.chunk) + taps.size(), "chunk with history");
+    double rate = sample_rate(args.required("--in"));
+    if (args.has("--rate")) {
+        rate = std::stod(args.required("--rate"));
+    }
+
+    std::vector<double> times;
+    std::vector<cf32> y;
+    StreamTiming timing;
+    for (int i = 0; i < bench.warmup + bench.runs; ++i) {
+        y = fir_stream(x, taps, config, timing);
+        if (i >= bench.warmup) {
+            times.push_back(timing.total_ms);
+        }
+    }
+    write_cf32(args.required("--out"), y);
+    if (!args.has("--bench")) {
+        std::printf("stream[%s]: %zu samples in %d chunks of %d, depth %d -> %s\n", impl.c_str(),
+                    x.size(), timing.chunks, config.chunk, config.depth,
+                    args.required("--out").c_str());
+        return 0;
+    }
+    double mean = 0.0;
+    for (double t : times) {
+        mean += t / static_cast<double>(times.size());
+    }
+    double var = 0.0;
+    for (double t : times) {
+        var += (t - mean) * (t - mean);
+    }
+    const double std_ms = times.size() > 1 ? std::sqrt(var / static_cast<double>(times.size() - 1))
+                                           : 0.0;
+    const double msps = static_cast<double>(x.size()) / (mean * 1e3);
+    std::printf("{\"op\": \"stream\", \"impl\": \"%s\", \"memory\": \"%s\", \"gpu\": \"%s\", "
+                "\"num_in\": %zu, \"chunk\": %d, \"depth\": %d, \"chunks\": %d, \"runs\": %d, "
+                "\"warmup\": %d, \"total_ms\": {\"mean\": %.6f, \"std\": %.6f}, \"msps\": %.3f, "
+                "\"sample_rate\": %.1f, \"realtime_factor\": %.3f}\n",
+                impl.c_str(), memory.c_str(), gpu_name().c_str(), x.size(), config.chunk,
+                config.depth, timing.chunks, bench.runs, bench.warmup, mean, std_ms, msps, rate,
+                rate > 0 ? msps * 1e6 / rate : 0.0);
+    return 0;
+}
+
 // CUDA packs versions as 1000 * major + 10 * minor.
 std::string version_string(int packed)
 {
@@ -333,6 +412,7 @@ int main(int argc, char** argv)
         if (op == "magnitude") return run_magnitude(argc, argv);
         if (op == "fir") return run_fir(argc, argv);
         if (op == "xcorr") return run_xcorr(argc, argv);
+        if (op == "stream") return run_stream(argc, argv);
         if (op == "info") return run_info(argc, argv);
         if (op == "--help" || op == "-h" || op == "help") {
             print_usage();
