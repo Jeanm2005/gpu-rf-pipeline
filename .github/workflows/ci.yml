@@ -4,8 +4,8 @@
 #   python  CPU reference and fixture tests on the oldest and newest supported Python, and (on
 #           the newest) a check that tools/gen_fixtures.py still reproduces the committed
 #           fixtures byte for byte. tests/test_pipeline.py skips itself: there is no rfgpu.
-#   cuda    rfgpu compiles with CUDA 13.4 and GCC 15 (the development machine's toolchain),
-#           with every compiler warning treated as an error.
+#   cuda    rfgpu compiles with CUDA 13.4 and GCC 15 (the development machine's toolchain) for
+#           the RTX 5080 and for Jetson Orin and Thor, with every warning treated as an error.
 #   sigflowc  the SigFlow compiler (compiler/) builds with warnings as errors and passes its
 #           GoogleTest unit tests and golden tests (ctest). It needs no GPU.
 #   fuzz    a libFuzzer target over the whole compiler (compiler/fuzz/) runs for 60 seconds
@@ -73,12 +73,13 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends cmake g++ make
 
-      # No GPU to detect, so the architecture is given explicitly: compute capability 12.0 is
-      # the RTX 5080 Laptop GPU the measurements come from.
+      # No GPU to detect, so the architectures are given explicitly: compute capability 12.0 is
+      # the RTX 5080 Laptop GPU the measurements come from, 8.7 and 11.0 are Jetson Orin and
+      # Thor (docs/JETSON.md).
       - name: Configure
         run: >
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-          -DCMAKE_CUDA_ARCHITECTURES=120
+          -DCMAKE_CUDA_ARCHITECTURES="87;110;120"
           -DCMAKE_COMPILE_WARNING_AS_ERROR=ON
 
       - name: Build

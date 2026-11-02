@@ -50,7 +50,10 @@ In priority order; the order can change.
    with phase transform, for TDOA, time difference of arrival) and `rfgpu doa` (direction of
    arrival for a uniform linear array), checked on a simulated four-receiver array fixture.
 4. **Real recordings.** Public SigMF datasets in addition to synthetic data.
-5. **Jetson portability.** Unified memory, and the power and clock limits of embedded GPUs.
+5. **Jetson portability.** Done as far as possible without a board: CI compiles the device code
+   for Orin (8.7) and Thor (11.0), `rfgpu stream --memory zero-copy` avoids copies on shared
+   memory, and [`JETSON.md`](JETSON.md) covers building, power modes, clocks, and measuring.
+   Open: measurements on a Jetson.
 6. **Parser fuzzing.** A libFuzzer target for the SigFlow lexer and parser.
 
 ## Deferred ideas
