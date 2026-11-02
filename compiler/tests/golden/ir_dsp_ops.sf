@@ -1,0 +1,8 @@
+# args: --emit=ir
+# channelize gives frames of `channels` samples; gcc_phat has xcorr's shape.
+x = capture("fixtures/tone.cf32", rate=1e6)
+y = capture("fixtures/tone_odd.cf32", rate=1e6)
+c = x |> channelize(taps="fixtures/channelizer_proto.f32", channels=16) |> magnitude
+g = gcc_phat(x, y)
+emit c -> "out/c.f32"
+emit g -> "out/g.cf32"

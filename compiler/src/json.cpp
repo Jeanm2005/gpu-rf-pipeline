@@ -65,8 +65,11 @@ void print_json(const Graph& graph, bool dce_ran, bool fuse_ran, const Schedule&
         if (!node.path.empty()) {
             out << ", \"path\": " << quoted(node.path);
         }
-        if (node.op == Op::Fir) {
+        if (node.op == Op::Fir || node.op == Op::Channelize) {
             out << ", \"taps\": " << quoted(node.taps);
+        }
+        if (node.op == Op::Channelize) {
+            out << ", \"channels\": " << node.n;
         }
         if (node.op == Op::Fft) {
             out << ", \"n\": " << node.n;

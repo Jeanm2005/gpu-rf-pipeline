@@ -39,8 +39,10 @@ const std::vector<OpSpec>& op_specs()
 {
     static const std::vector<OpSpec> specs = {
         {"capture", 1, {{"rate", Literal::Kind::Number}}},
+        {"channelize", 1, {{"channels", Literal::Kind::Number}, {"taps", Literal::Kind::String}}},
         {"fft", 1, {{"n", Literal::Kind::Number}}},
         {"fir", 1, {{"taps", Literal::Kind::String}}},
+        {"gcc_phat", 2, {}},
         {"magnitude", 1, {}},
         {"xcorr", 2, {}},
     };
@@ -270,6 +272,9 @@ private:
         if (call.callee == "fft") {
             return fft_type(inputs[0], *keywords.at("n"));
         }
+        if (call.callee == "channelize") {
+            return channelize_type(inputs[0], *keywords.at("channels"));
+        }
         if (call.callee == "magnitude") {
             return magnitude_type(call, inputs[0], *positional[0]);
         }
@@ -368,6 +373,20 @@ private:
                             input.rate_text);
     }
 
+    // M channels of a critically sampled filter bank: one frame of M channel samples per M input
+    // samples, like an M-point fft.
+    std::optional<Type> channelize_type(const Type& input, const Literal& channels)
+    {
+        if (!(channels.number >= 1.0) || channels.number != std::floor(channels.number)
+            || channels.number > 1 << 20) {
+            error(channels.range, "channels must be an integer from 1 to 1048576, got "
+                                      + channels.text);
+            return std::nullopt;
+        }
+        return Type::frames(ElementType::Cf32, static_cast<int>(channels.number), input.rate,
+                            input.rate_text);
+    }
+
     std::optional<Type> magnitude_type(const CallExpr& call, const Type& input, const Expr& arg)
     {
         if (input.kind != Type::Kind::Frames || input.element != ElementType::Cf32) {
@@ -383,8 +402,8 @@ private:
     std::optional<Type> xcorr_type(const CallExpr& call, const Type& a, const Type& b)
     {
         if (a.rate != b.rate) {
-            error(call.callee_range, "xcorr inputs have different sample rates (" + a.rate_text
-                                         + " vs " + b.rate_text + ")");
+            error(call.callee_range, call.callee + " inputs have different sample rates ("
+                                         + a.rate_text + " vs " + b.rate_text + ")");
             return std::nullopt;
         }
         return a;

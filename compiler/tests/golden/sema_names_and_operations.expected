@@ -7,7 +7,7 @@ sema_names_and_operations.sf:4:5: error: 'magnitude' is an operation, not a bind
 sema_names_and_operations.sf:5:5: error: 'a' is a binding, not an operation
   f = a(1)
       ^
-sema_names_and_operations.sf:6:10: error: unknown operation 'lowpass' (available: capture, fft, fir, magnitude, xcorr)
+sema_names_and_operations.sf:6:10: error: unknown operation 'lowpass' (available: capture, channelize, fft, fir, gcc_phat, magnitude, xcorr)
   g = a |> lowpass(taps="h.f32")
            ^~~~~~~
 sema_names_and_operations.sf:8:11: error: "out/a.cf32" is already written by the emit on line 7

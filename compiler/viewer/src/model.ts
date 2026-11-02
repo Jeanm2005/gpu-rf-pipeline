@@ -2,7 +2,15 @@
 // parser that checks the shape before anything is drawn, so a stale or hand-edited file fails
 // with a message instead of a broken picture.
 
-export type Op = "capture" | "fir" | "fft" | "magnitude" | "xcorr" | "emit";
+export type Op =
+  | "capture"
+  | "fir"
+  | "fft"
+  | "magnitude"
+  | "xcorr"
+  | "channelize"
+  | "gcc_phat"
+  | "emit";
 
 export interface IrNode {
   id: number;
@@ -14,8 +22,9 @@ export interface IrNode {
   rate?: string;
   name?: string;
   path?: string; // capture: file read; emit: file written
-  taps?: string; // fir
+  taps?: string; // fir, channelize
   n?: number; // fft
+  channels?: number; // channelize
   removedBy?: string; // the pass that removed the node, when !live
   step?: number; // schedule step, live nodes only
   liveRange?: [number, number]; // [def, last use], live value nodes only
@@ -40,7 +49,16 @@ export interface IrGraph {
 
 export type ParseResult = { ok: true; graph: IrGraph } | { ok: false; error: string };
 
-const OPS: readonly string[] = ["capture", "fir", "fft", "magnitude", "xcorr", "emit"];
+const OPS: readonly string[] = [
+  "capture",
+  "fir",
+  "fft",
+  "magnitude",
+  "xcorr",
+  "channelize",
+  "gcc_phat",
+  "emit",
+];
 
 type Json = Record<string, unknown>;
 
@@ -99,6 +117,7 @@ function parseNode(raw: unknown, index: number): IrNode {
     path: optionalString(raw, "path"),
     taps: optionalString(raw, "taps"),
     n: optionalInt(raw, "n"),
+    channels: optionalInt(raw, "channels"),
     removedBy: optionalString(raw, "removed_by"),
     step: optionalInt(raw, "step"),
     slot: optionalInt(raw, "slot"),

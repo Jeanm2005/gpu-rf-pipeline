@@ -90,9 +90,11 @@ std::vector<long long> value_bytes(const Graph& graph, const std::string& input_
             n = in(0);
             break;
         case Op::Fft:
+        case Op::Channelize:
             n = in(0) < 0 ? -1 : (in(0) + node.n - 1) / node.n * node.n;
             break;
         case Op::Xcorr:
+        case Op::GccPhat:
             n = in(0) < 0 || in(1) < 0 ? -1 : in(0) + in(1) - 1;
             break;
         case Op::Emit:

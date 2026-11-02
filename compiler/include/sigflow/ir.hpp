@@ -20,6 +20,8 @@ enum class Op {
     Fft,        // inputs: signal; attrs: n
     Magnitude,  // inputs: frames
     Xcorr,      // inputs: a, b
+    Channelize, // inputs: signal; attrs: taps, n (channels)
+    GccPhat,    // inputs: a, b
     Emit,       // inputs: the value written to `path`; a sink, produces nothing
 };
 
@@ -34,8 +36,8 @@ struct Node {
     Type type;          // meaningless for Emit
     std::string name;   // the binding this node defines, or "" for an intermediate value
     std::string path;   // Capture: file read. Emit: file written.
-    std::string taps;   // Fir: taps file
-    int n = 0;          // Fft: frame size
+    std::string taps;   // Fir, Channelize: taps file
+    int n = 0;          // Fft: frame size. Channelize: channels
     // Kernel-fusion group (src/fuse.cpp), or -1. Nodes in one group run as a single kernel
     // launch, so they are scheduled together and count as one step for buffer reuse.
     int group = -1;

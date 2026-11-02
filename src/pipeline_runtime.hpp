@@ -64,9 +64,9 @@ public:
     // A batched forward-FFT plan, owned by the runtime.
     cufftHandle fft_plan(int nfft, std::size_t num_frames);
 
-    // An FFT-based cross-correlation for these input lengths, owned by the runtime. Its work
-    // buffers and plan count toward the report's FFT work memory.
-    const XcorrFft& xcorr_fft(std::size_t num_a, std::size_t num_b);
+    // An FFT-based cross-correlation for these input lengths (GCC-PHAT with `phat`), owned by
+    // the runtime. Its work buffers and plan count toward the report's FFT work memory.
+    const XcorrFft& xcorr_fft(std::size_t num_a, std::size_t num_b, bool phat = false);
 
     // --- run -------------------------------------------------------------------------------
 

@@ -1,0 +1,13 @@
+# Time differences of arrival across the simulated four-receiver array, with GCC-PHAT: the peak
+# of each output is the delay of that receiver behind receiver 0 (2, 4, and 6 samples). The
+# delays give the direction of arrival; see `rfgpu doa` in the README.
+r0 = capture("fixtures/array0.cf32", rate=1e6)
+r1 = capture("fixtures/array1.cf32", rate=1e6)
+r2 = capture("fixtures/array2.cf32", rate=1e6)
+r3 = capture("fixtures/array3.cf32", rate=1e6)
+d1 = gcc_phat(r0, r1)
+d2 = gcc_phat(r0, r2)
+d3 = gcc_phat(r0, r3)
+emit d1 -> "out/tdoa_1.cf32"
+emit d2 -> "out/tdoa_2.cf32"
+emit d3 -> "out/tdoa_3.cf32"

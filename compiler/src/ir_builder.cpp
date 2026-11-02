@@ -22,6 +22,12 @@ Op op_for(const std::string& callee)
     if (callee == "magnitude") {
         return Op::Magnitude;
     }
+    if (callee == "channelize") {
+        return Op::Channelize;
+    }
+    if (callee == "gcc_phat") {
+        return Op::GccPhat;
+    }
     assert(callee == "xcorr" && "sema accepted an operation the IR builder does not know");
     return Op::Xcorr;
 }
@@ -117,7 +123,7 @@ private:
         for (const KeywordArg& kwarg : call.kwargs) {
             if (kwarg.name == "taps") {
                 node.taps = kwarg.value.text;
-            } else if (kwarg.name == "n") {
+            } else if (kwarg.name == "n" || kwarg.name == "channels") {
                 node.n = static_cast<int>(kwarg.value.number);
             }
         }
@@ -145,6 +151,10 @@ const char* op_name(Op op)
         return "magnitude";
     case Op::Xcorr:
         return "xcorr";
+    case Op::Channelize:
+        return "channelize";
+    case Op::GccPhat:
+        return "gcc_phat";
     case Op::Emit:
         return "emit";
     }
@@ -183,8 +193,11 @@ std::string format_node(const Node& node)
     if (node.op == Op::Capture) {
         out << " \"" << node.path << "\"";
     }
-    if (node.op == Op::Fir) {
+    if (node.op == Op::Fir || node.op == Op::Channelize) {
         out << " taps=\"" << node.taps << "\"";
+    }
+    if (node.op == Op::Channelize) {
+        out << " channels=" << node.n;
     }
     if (node.op == Op::Fft) {
         out << " n=" << node.n;

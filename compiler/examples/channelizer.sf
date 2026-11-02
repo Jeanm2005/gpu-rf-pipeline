@@ -1,0 +1,6 @@
+# Split the tone fixture into 16 channels with a polyphase filter bank, then take each channel's
+# magnitude. The 39 kHz tone lands in channel 1 (62.5 kHz wide channels at 1 MS/s).
+x     = capture("fixtures/tone.cf32", rate=1e6)
+chans = x |> channelize(taps="fixtures/channelizer_proto.f32", channels=16)
+mag   = chans |> magnitude
+emit mag -> "out/channel_magnitude.f32"

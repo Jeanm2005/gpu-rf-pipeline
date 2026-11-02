@@ -1,0 +1,16 @@
+sema_dsp_ops.sf:4:69: error: channels must be an integer from 1 to 1048576, got 0
+  c = a |> channelize(taps="fixtures/channelizer_proto.f32", channels=0)
+                                                                      ^
+sema_dsp_ops.sf:5:69: error: channels must be an integer from 1 to 1048576, got 2.5
+  d = a |> channelize(taps="fixtures/channelizer_proto.f32", channels=2.5)
+                                                                      ^~~
+sema_dsp_ops.sf:6:10: error: channelize requires keyword argument 'taps'
+  e = a |> channelize(channels=16)
+           ^~~~~~~~~~
+sema_dsp_ops.sf:7:5: error: gcc_phat inputs have different sample rates (1e6 vs 2e6)
+  f = gcc_phat(a, b)
+      ^~~~~~~~
+sema_dsp_ops.sf:8:5: error: channelize expects stream<cf32> as argument 1, got frames<cf32, 16>
+  g = a |> fft(n=16) |> channelize(taps="fixtures/channelizer_proto.f32", channels=16)
+      ^
+[exit 1]

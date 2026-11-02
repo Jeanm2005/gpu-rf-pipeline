@@ -89,6 +89,14 @@ void emit_script(const Graph& graph, const Schedule& schedule, const Liveness& l
             out << "\"$RFGPU\" xcorr --a " << input(node, 0) << " --b " << input(node, 1)
                 << " --out " << result << impl_flag(kernels.xcorr) << "\n";
             break;
+        case Op::Channelize:
+            out << "\"$RFGPU\" channelize --in " << input(node, 0) << " --taps "
+                << quote(node.taps) << " --channels " << node.n << " --out " << result << "\n";
+            break;
+        case Op::GccPhat:
+            out << "\"$RFGPU\" gcc_phat --a " << input(node, 0) << " --b " << input(node, 1)
+                << " --out " << result << "\n";
+            break;
         case Op::Emit: {
             const std::string directory = parent_directory(node.path);
             if (!directory.empty()) {

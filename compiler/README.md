@@ -92,6 +92,8 @@ Notes on the grammar:
 | `fft(s, n=)` | `stream<cf32>` → `frames<cf32, n>` | cuFFT |
 | `magnitude(f)` | `frames<cf32, N>` → `frames<f32, N>` | element-wise |
 | `xcorr(a, b)` | `stream<cf32>`, `stream<cf32>` → `stream<cf32>` (same rate required) | custom kernel |
+| `channelize(s, taps=, channels=)` | `stream<cf32>` → `frames<cf32, channels>` | polyphase branch-sum kernel + cuFFT |
+| `gcc_phat(a, b)` | `stream<cf32>`, `stream<cf32>` → `stream<cf32>` (same rate required) | cuFFT + phase-transform kernel |
 
 ### Example errors
 

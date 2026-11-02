@@ -51,6 +51,8 @@ function detail(node: IrNode): string {
       return `taps ${clip(node.taps ?? "", 19)}`;
     case "fft":
       return `n = ${node.n}`;
+    case "channelize":
+      return `${node.channels} channels`;
     case "emit":
       return `→ ${clip(node.path ?? "", 22)}`;
     default:

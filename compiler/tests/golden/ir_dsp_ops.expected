@@ -1,0 +1,7 @@
+%0 = capture "fixtures/tone.cf32" : stream<cf32> @1e6   # x
+%1 = capture "fixtures/tone_odd.cf32" : stream<cf32> @1e6   # y
+%2 = channelize %0 taps="fixtures/channelizer_proto.f32" channels=16 : frames<cf32, 16> @1e6
+%3 = magnitude %2 : frames<f32, 16> @1e6   # c
+%4 = gcc_phat %0 %1 : stream<cf32> @1e6   # g
+emit %3 -> "out/c.f32"
+emit %4 -> "out/g.cf32"

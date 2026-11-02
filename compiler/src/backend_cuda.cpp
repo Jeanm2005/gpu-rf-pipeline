@@ -125,10 +125,12 @@ private:
                 out_ << "    const std::size_t " << n(id) << " = " << n(v.inputs[0]) << ";\n";
                 break;
             case Op::Fft:
+            case Op::Channelize:
                 out_ << "    const std::size_t " << n(id) << " = sigflow::padded_to_frames("
                      << n(v.inputs[0]) << ", " << v.n << ");\n";
                 break;
             case Op::Xcorr:
+            case Op::GccPhat:
                 out_ << "    const std::size_t " << n(id) << " = " << n(v.inputs[0]) << " + "
                      << n(v.inputs[1]) << " - 1;\n";
                 break;
@@ -158,7 +160,7 @@ private:
         bool first = true;
         for (NodeId id : schedule_.order) {
             const Node& v = node(id);
-            if (v.op == Op::Fir) {
+            if (v.op == Op::Fir || v.op == Op::Channelize) {
                 if (first) {
                     out_ << "\n    // Taps and FFT plans.\n";
                     first = false;
@@ -166,6 +168,17 @@ private:
                 out_ << "    int taps" << id << " = 0;\n"
                      << "    const float* t" << id << " = rt.taps(" << literal(v.taps)
                      << ", taps" << id << ");\n";
+                if (v.op == Op::Channelize) {
+                    out_ << "    const cufftHandle plan" << id << " = rt.fft_plan(" << v.n
+                         << ", " << n(id) << " / " << v.n << ");\n";
+                }
+            } else if (v.op == Op::GccPhat) {
+                if (first) {
+                    out_ << "\n    // Taps and FFT plans.\n";
+                    first = false;
+                }
+                out_ << "    const XcorrFft& gcc" << id << " = rt.xcorr_fft(" << n(v.inputs[0])
+                     << ", " << n(v.inputs[1]) << ", true);\n";
             } else if (v.op == Op::Fft) {
                 if (first) {
                     out_ << "\n    // Taps and FFT plans.\n";
@@ -255,6 +268,23 @@ private:
                      << ", " << slot(v.inputs[1]) << ", " << slot(id) << ", "
                      << as_int(v.inputs[0]) << ", " << as_int(v.inputs[1]) << ");\n"
                      << "            rt.count(\"xcorr\");\n";
+                break;
+            case Op::Channelize:
+                // The branch-sum kernel, then one batched inverse FFT (src/channelize.cu).
+                out_ << "            channelize_device(plan" << id << ", " << slot(v.inputs[0])
+                     << ", t" << id << ", " << slot(id) << ", " << as_int(v.inputs[0]) << ", "
+                     << v.n << ", taps" << id << ");\n"
+                     << "            rt.count(\"channelize\");\n"
+                     << "            rt.count(\"cufft\");\n";
+                break;
+            case Op::GccPhat:
+                // Three cuFFT calls around the phase-transform weighting (src/xcorr.cu).
+                out_ << "            gcc" << id << ".run(" << slot(v.inputs[0]) << ", "
+                     << slot(v.inputs[1]) << ", " << slot(id) << ");\n"
+                     << "            rt.count(\"cufft\");\n"
+                     << "            rt.count(\"cufft\");\n"
+                     << "            rt.count(\"gcc_phat_weight\");\n"
+                     << "            rt.count(\"cufft\");\n";
                 break;
             case Op::Capture:
             case Op::Emit:

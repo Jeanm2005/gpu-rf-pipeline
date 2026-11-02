@@ -57,11 +57,13 @@ require_binaries()
 #   xcorr      up to fir -> xcorr on ch0 / ch1. Worst error 1.1e-2 on the raw pair's 1.65e4 peak
 #              and 1.1e-2 at |r| = 2.4e3 on the filtered pair; at most 3.7e-4 left for atol.
 #              atol leaves a factor of 13.
+#   gcc_phat   values at most 1 (unit weight per frequency); float32 error about 1e-7 * sqrt(L).
 TOLERANCES: dict[str, tuple[float, float]] = {
     "capture": (0.0, 0.0),
     "fir": (1e-5, 1e-5),
     "magnitude": (1e-5, 1e-3),
     "xcorr": (1e-5, 5e-3),
+    "gcc_phat": (0.0, 1e-4),
 }
 
 
@@ -96,6 +98,11 @@ def evaluate(graph: dict, workdir: Path) -> dict[int, np.ndarray]:
             values[node["id"]] = reference.magnitude(args[0])
         elif op == "xcorr":
             values[node["id"]] = reference.xcorr(args[0], args[1])
+        elif op == "channelize":
+            taps = reference.read_f32(workdir / node["taps"])
+            values[node["id"]] = reference.channelize(args[0], taps, node["channels"]).ravel()
+        elif op == "gcc_phat":
+            values[node["id"]] = reference.gcc_phat(args[0], args[1])
         else:
             assert op == "emit", f"unknown op {op}"
     return values

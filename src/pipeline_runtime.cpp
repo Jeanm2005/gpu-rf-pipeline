@@ -113,10 +113,10 @@ cufftHandle Runtime::fft_plan(int nfft, std::size_t num_frames)
     return plans_.back()->get();
 }
 
-const XcorrFft& Runtime::xcorr_fft(std::size_t num_a, std::size_t num_b)
+const XcorrFft& Runtime::xcorr_fft(std::size_t num_a, std::size_t num_b, bool phat)
 {
     xcorr_ffts_.push_back(
-        std::make_unique<XcorrFft>(static_cast<int>(num_a), static_cast<int>(num_b)));
+        std::make_unique<XcorrFft>(static_cast<int>(num_a), static_cast<int>(num_b), phat));
     fft_work_bytes_ += xcorr_ffts_.back()->bytes();
     return *xcorr_ffts_.back();
 }

@@ -1,0 +1,9 @@
+# args: --emit=check
+a = capture("fixtures/ch0.cf32", rate=1e6)
+b = capture("fixtures/ch1.cf32", rate=2e6)
+c = a |> channelize(taps="fixtures/channelizer_proto.f32", channels=0)
+d = a |> channelize(taps="fixtures/channelizer_proto.f32", channels=2.5)
+e = a |> channelize(channels=16)
+f = gcc_phat(a, b)
+g = a |> fft(n=16) |> channelize(taps="fixtures/channelizer_proto.f32", channels=16)
+emit a -> "out/a.cf32"
