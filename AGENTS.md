@@ -55,8 +55,9 @@ ncu --set full -o docs/profiles/fir ./build/rfgpu fir ...  # Nsight Compute: per
 ```
 
 CI (`.github/workflows/ci.yml`) runs on GitHub-hosted runners without a GPU: the CPU tests, the
-fixture reproducibility check, a CUDA 13.4 build with warnings as errors, the `sigflowc` unit and
-golden tests, and the DAG viewer's tests. It cannot run `tests/test_pipeline.py` or
+fixture reproducibility check, a CUDA 13.4 build with warnings as errors (for the RTX 5080 and
+for Jetson Orin and Thor), the `sigflowc` unit and golden tests, 60 seconds of fuzzing, and the
+DAG viewer's tests. It cannot run `tests/test_pipeline.py` or
 `compiler/tests/e2e`, so run both locally before every commit.
 
 On WSL2, Nsight Compute may not be able to read GPU performance counters (setup in

@@ -44,6 +44,7 @@ cmake --build compiler/build -j
 | Compiler unit and golden tests | `ctest --test-dir compiler/build --output-on-failure` | No |
 | Compiler end to end | `cd compiler && pytest -q tests/e2e` | Yes |
 | Viewer | `cd compiler/viewer && npm test` | No |
+| Compiler fuzzing | see "Fuzzing" in `compiler/README.md` (needs Clang) | No |
 
 CI runs every suite that does not need a GPU.
 

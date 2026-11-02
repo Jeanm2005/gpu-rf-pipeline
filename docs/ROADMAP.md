@@ -6,17 +6,18 @@ The project has three stages, each built on a finished and measured previous one
    data, verified against a CPU reference and optimized kernel by kernel.
 2. **SigFlow compiler (`sigflowc`).** A DSL for these pipelines, compiled through a graph IR to
    scheduled, memory-planned, fused GPU programs.
-3. **Extensions.** Streaming, channelization, direction finding, real recordings, and embedded
-   targets.
+3. **Extensions.** Streaming, channelization, direction finding, real recordings, embedded
+   targets, and fuzzing.
 
-Measurements behind every completed optimization are in [`PROFILING_LOG.md`](PROFILING_LOG.md).
+All three are complete. Measurements behind every optimization are in
+[`PROFILING_LOG.md`](PROFILING_LOG.md).
 
 ## Stage 1: GPU pipeline — complete
 
 | Milestone | Delivered |
 |---|---|
 | Foundations | Deterministic synthetic fixtures with ground truth (`tools/gen_fixtures.py`) |
-| CPU reference | `tools/reference.py`: spectrum, magnitude, FIR, and cross-correlation in NumPy/SciPy, checked against brute-force definitions |
+| CPU reference | `tools/reference.py`: every operation in NumPy/SciPy, checked against brute-force definitions |
 | Host scaffold | `rfgpu` CLI, `.cf32` / `.f32` I/O, error-checked CUDA and cuFFT calls, CUDA-event timing harness (`--bench`), CI |
 | Spectrum | Batched cuFFT over fixed-size frames, last frame zero-padded |
 | FIR | `naive` → `tiled` (shared-memory tile with halo) → `tiled_const` (taps in constant memory) → `register` (4 or 8 outputs per thread from an I/Q-split tile): 2.7× (63 taps) and 5.0× (1025 taps) over naive; block-size sweep with `--block` |
@@ -29,38 +30,34 @@ Measurements behind every completed optimization are in [`PROFILING_LOG.md`](PRO
 |---|---|
 | A: front end and script backend | Lexer, recursive-descent parser, semantic analysis (names, types, sample rates, cycles), graph IR, Kahn scheduler with source-order tie-breaking, dead-node elimination, a backend that emits a script of `rfgpu` commands |
 | B: memory planning and viewer | Liveness analysis and buffer reuse (−40 % GPU memory on `two_channel.sf`, measured), TypeScript DAG viewer |
-| C: fusion and CUDA backend | Horizontal fusion of FIRs that share taps, a CUDA backend that keeps every value on the GPU, batched FIR kernel, fused vs. unfused measurements |
+| C: fusion and CUDA backend | Horizontal fusion of FIRs that share taps, a CUDA backend that keeps every value on the GPU, batched FIR kernels, fused vs. unfused measurements |
 
 Kernel selection (`--fir-impl`, `--xcorr-impl`) lets both backends use any kernel variant,
 including batched versions of every FIR variant for fusion groups.
 
-## Stage 3: Extensions
+## Stage 3: Extensions — complete
 
-In priority order; the order can change.
-
-1. **Streaming.** Done in `rfgpu stream`: a ring of pinned buffers and CUDA streams that
-   overlaps upload, kernel, and download of successive chunks, bit-identical to the one-shot
-   FIR, with copy, registered (page-locked in place), and zero-copy memory modes. Up to
-   1061 MS/s end to end, 2.5× the one-shot path (profiling log, "Streaming"). Open: streaming
-   execution in `sigflowc`.
-2. **Channelizer.** Done in `rfgpu channelize`: a critically sampled polyphase filter bank
-   (branch-sum kernel and one batched inverse cuFFT call), 1.05 ms for 2^24 samples into 16
-   channels.
-3. **Direction finding.** Done in `rfgpu gcc_phat` (GCC-PHAT, generalized cross-correlation
-   with phase transform, for TDOA, time difference of arrival) and `rfgpu doa` (direction of
-   arrival for a uniform linear array), checked on a simulated four-receiver array fixture.
-4. **Real recordings.** Public SigMF datasets in addition to synthetic data.
-5. **Jetson portability.** Done as far as possible without a board: CI compiles the device code
-   for Orin (8.7) and Thor (11.0), `rfgpu stream --memory zero-copy` avoids copies on shared
-   memory, and [`JETSON.md`](JETSON.md) covers building, power modes, clocks, and measuring.
-   Open: measurements on a Jetson.
-6. **Parser fuzzing.** A libFuzzer target for the SigFlow lexer and parser.
+| Extension | Delivered |
+|---|---|
+| Streaming | `rfgpu stream`: a ring of pinned buffers and CUDA streams overlapping upload, kernel, and download of successive chunks, bit-identical to the one-shot FIR: up to 1061 MS/s end to end, 2.5× the one-shot path, with copy, registered, and zero-copy memory modes |
+| Channelizer | `rfgpu channelize` and SigFlow `channelize`: a critically sampled polyphase filter bank (branch-sum kernel and one batched cuFFT call) |
+| Direction finding | `rfgpu gcc_phat` and SigFlow `gcc_phat` (GCC-PHAT, generalized cross-correlation with phase transform, on the cuFFT path) for time differences of arrival, and `rfgpu doa` for the direction of arrival at a uniform linear array, checked on a simulated four-receiver array |
+| Real recordings | Every `rfgpu` input accepts a SigMF recording (`.sigmf-meta` / `.sigmf-data`) in `cf32_le`, `ci16_le`, or `ci8`, with its sample rate taken from the metadata |
+| Jetson portability | Device code built for Orin (8.7) and Thor (11.0) in CI, zero-copy streaming over mapped pinned memory (`--memory zero-copy`), and [`JETSON.md`](JETSON.md) on power modes, clocks, and measurement |
+| Parser fuzzing | A libFuzzer target over the whole compiler under ASan and UBSan, run in CI |
 
 ## Deferred ideas
 
+- Streaming execution in `sigflowc`: generated programs that process captures in chunks.
+  Element-wise and FIR stages chunk the way `rfgpu stream` does, but cross-correlation and
+  GCC-PHAT need the whole signal (or an overlap-save formulation with a maximum lag), so the
+  language first needs a notion of bounded lag.
+- Measurements on a Jetson board and on public SigMF recordings. The code paths exist and are
+  tested; the numbers in this repository come from one discrete GPU and synthetic data.
 - Vertical fusion of `fft |> magnitude`: compute the magnitude in a cuFFT store callback, so
   the complex spectrum never reaches GPU memory. Needs cuFFT's LTO callbacks (or the legacy
   callbacks with static cuFFT and relocatable device code).
-- Fractional-sample delays in the two-channel fixture (it currently uses an integer delay).
+- Fractional-sample delays in the two-channel and array fixtures (they use integer delays).
 - A `--max-lag` option for cross-correlation, so real-time use does not compute every lag.
 - GPU tests in CI, which would need a self-hosted runner with an NVIDIA GPU.
+- Unified memory (`cudaMallocManaged`) for the SigFlow runtime's buffer slots on Jetson.

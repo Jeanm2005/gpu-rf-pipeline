@@ -4,23 +4,28 @@
 ![CUDA 13.4](https://img.shields.io/badge/CUDA-13.4-76B900)
 ![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C)
 
-GPU signal processing for recorded radio data: an FFT spectrum, FIR filtering, and
-cross-correlation in CUDA C++, verified against a NumPy/SciPy reference and optimized kernel by
-kernel with Nsight. It ships with **SigFlow**, a small dataflow language whose compiler schedules
-a pipeline, plans its GPU memory, fuses kernels, and generates a CUDA program for it.
+GPU signal processing for recorded radio data: an FFT spectrum, FIR filtering,
+cross-correlation, a polyphase channelizer, and GCC-PHAT direction finding in CUDA C++, verified
+against a NumPy/SciPy reference and optimized kernel by kernel with Nsight. It streams captures
+through pinned memory and CUDA streams, reads SigMF recordings, and ships with **SigFlow**, a
+small dataflow language whose compiler schedules a pipeline, plans its GPU memory, fuses
+kernels, and generates a CUDA program for it.
 
 ## Highlights
 
-- **Three operations, nine kernels.** Every implementation variant stays selectable
-  (`--impl`), so each optimization is measured against the one before it.
-- **Measured speedups.** The FIR filter runs 2.9× faster than the naive kernel with shared-memory
-  tiling and constant-memory taps; cross-correlation runs about 1000× faster through cuFFT.
-- **Verified results.** 121 tests check the float64 reference and compare every GPU variant
-  against it, with explicit tolerances and edge cases (partial blocks, inputs shorter than the
-  filter, zeros, recovery of a known delay).
+- **Every variant stays selectable.** Each operation keeps its kernels behind `--impl`, so
+  each optimization is measured against the one before it.
+- **Measured speedups.** The FIR filter runs 2.7× (63 taps) to 5.0× (1025 taps) faster than the
+  naive kernel, each step motivated by a profiler metric; cross-correlation runs about 900×
+  faster through cuFFT.
+- **Streaming.** `rfgpu stream` overlaps uploads, kernels, and downloads of successive chunks
+  across CUDA streams: up to 1061 million samples per second end to end, 2.5× the one-shot path.
+- **Verified results.** 230 tests compare every GPU variant to the float64 reference with
+  explicit tolerances and edge cases (partial blocks, inputs shorter than the filter, zeros,
+  known delays and angles), plus 103 end-to-end compiler tests on the GPU.
 - **A compiler for the pipeline.** `sigflowc` goes from source to a scheduled graph IR, applies
   dead-node elimination, liveness-based buffer reuse (−40 % GPU memory) and kernel fusion, and
-  emits either a script or a standalone CUDA program.
+  emits either a script or a standalone CUDA program. It is fuzzed in CI.
 
 ## Results
 
@@ -35,12 +40,14 @@ transfers excluded. Memory throughput comes from Nsight Compute.
 
 | FIR, 2^24 samples | Taps | Kernel time | Memory throughput | Speedup |
 |---|---|---|---|---|
-| naive | 63 | 1.66 ms | 98.8 % | 1.0× |
-| shared-memory tile | 63 | 1.16 ms | 98.3 % | 1.44× |
-| tile + constant-memory taps | 63 | 0.74 ms | 95.5 % | 2.25× |
-| naive | 1025 | 24.9 ms | 93.8 % | 1.0× |
-| shared-memory tile | 1025 | 15.1 ms | 98.8 % | 1.65× |
-| tile + constant-memory taps | 1025 | 8.65 ms | 99.0 % | 2.88× |
+| naive | 63 | 1.71 ms | 96.0 % | 1.0× |
+| shared-memory tile | 63 | 1.18 ms | 98.1 % | 1.45× |
+| tile + constant-memory taps | 63 | 0.753 ms | 95.3 % | 2.27× |
+| register: 4 outputs per thread, I/Q-split tile | 63 | 0.626 ms | 74.9 % | 2.73× |
+| naive | 1025 | 24.9 ms | 93.5 % | 1.0× |
+| shared-memory tile | 1025 | 15.8 ms | 98.9 % | 1.58× |
+| tile + constant-memory taps | 1025 | 8.72 ms | 99.2 % | 2.86× |
+| register: 8 outputs per thread, I/Q-split tile | 1025 | 5.01 ms | 45.0 % | 4.97× |
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/figures/xcorr_kernel_time-dark.png">
@@ -49,22 +56,32 @@ transfers excluded. Memory throughput comes from Nsight Compute.
 
 | Cross-correlation, 2^18 samples per channel | Kernel time | Memory throughput | Speedup |
 |---|---|---|---|
-| naive (time domain) | 149.4 ms | 95.9 % | 1.0× |
-| shared-memory tile | 68.4 ms | 92.6 % | 2.18× |
-| cuFFT-based | 0.145 ms | 57.0 % (conjugate multiply) | about 1000× |
+| naive (time domain) | 150.1 ms | 96.6 % | 1.0× |
+| shared-memory tile | 68.9 ms | 93.9 % | 2.18× |
+| cuFFT-based | 0.166 ms | 66.2 % (conjugate multiply) | about 900× |
 
 Findings:
 
-- The naive kernels already run near full occupancy; their warps spend 67 to 75 % of their cycles
+- The naive kernels already run near full occupancy; their warps spend most of their cycles
   waiting on global-memory loads. Staging each block's samples in shared memory removes most of
-  those loads, and moving the FIR taps to constant memory removes the rest.
+  those loads, and moving the FIR taps to constant memory removes the rest. The shared-memory
+  loads then become the limit, so the `register` variant computes several outputs per thread
+  from a sliding window in registers; the 1025-tap kernel is now bound by instruction issue,
+  not memory.
+- A block-size sweep (64 to 1024 threads) moved no variant by more than 9 % before `register`;
+  256 stays the default.
 - For cross-correlation the larger gain is algorithmic: the FFT route does `O(N log N)` work
   instead of `O(N²)` and overtakes the time-domain kernels between 2^10 and 2^12 samples per
   channel. It is also more accurate at this size, since the time-domain kernels keep one long
   float32 running sum per lag.
 - Once the kernels are fast, transfers dominate: moving the 128 MB FIR input to the GPU and the
-  result back takes about 38 ms, against 0.74 ms for the fastest FIR kernel. That is what the
-  streaming work on the roadmap addresses.
+  result back takes about 40 ms, against 0.63 ms for the fastest FIR kernel. Streaming from
+  page-locked memory with copies in both directions overlapped cuts the whole run to 15.8 ms:
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/figures/stream_throughput-dark.png">
+  <img alt="Streaming throughput by configuration, 63 and 1025 taps" src="docs/figures/stream_throughput.png">
+</picture>
 
 The full analysis of every iteration, including negative results, is in
 [`docs/PROFILING_LOG.md`](docs/PROFILING_LOG.md).
@@ -102,14 +119,29 @@ samples per channel, against 152 ms with the naive kernels:
   <img alt="Kernel and end-to-end time per sigflowc variant, two_channel.sf at 2^18 samples per channel" src="docs/figures/sigflow_two_channel_bench.png">
 </picture>
 
-Language reference, compiler design, and measurements: [`compiler/README.md`](compiler/README.md).
+SigFlow also has `channelize` and `gcc_phat` operations, so channelizer and direction-finding
+pipelines compile the same way. Language reference, compiler design, and measurements:
+[`compiler/README.md`](compiler/README.md).
+
+## Signal-processing extensions
+
+| Command | What it does |
+|---|---|
+| `rfgpu stream` | FIR over a capture in chunks through a ring of pinned buffers and CUDA streams, bit-identical to `rfgpu fir`; `--memory copy`, `registered`, or `zero-copy` |
+| `rfgpu channelize` | Critically sampled polyphase filter bank: M channels, each decimated by M, from one branch-sum kernel and one batched cuFFT call |
+| `rfgpu gcc_phat` | Cross-correlation with the phase transform, whose sharp peak gives the time difference of arrival between two receivers |
+| `rfgpu doa` | Direction of arrival for a uniform linear array, from the GCC-PHAT delays of every receiver against the first |
+
+Every input can also be a SigMF recording (`.sigmf-meta` / `.sigmf-data`, in `cf32_le`,
+`ci16_le`, or `ci8`). [`docs/JETSON.md`](docs/JETSON.md) covers building for and measuring on
+Jetson Orin and Thor.
 
 ## Getting started
 
 ### Requirements
 
 - Linux or WSL2 with an NVIDIA GPU and driver
-- CUDA Toolkit 12.8 or newer (nvcc, cuFFT)
+- CUDA Toolkit 12.8 or newer (nvcc, cuFFT); 13.0 or newer to build for Jetson Thor
 - CMake 3.24 or newer and a C++17 compiler
 - Python 3.10 or newer
 - Node.js 20 or newer, only for the DAG viewer
@@ -133,21 +165,28 @@ ctest --test-dir compiler/build --output-on-failure
 ```bash
 ./build/rfgpu spectrum --in tests/fixtures/tone.cf32 --out out/spectrum.cf32 --nfft 1024
 ./build/rfgpu fir --in tests/fixtures/tone.cf32 --taps tests/fixtures/lowpass.f32 \
-                  --out out/fir.cf32 --impl tiled_const
+                  --out out/fir.cf32 --impl register
 ./build/rfgpu xcorr --a tests/fixtures/ch0.cf32 --b tests/fixtures/ch1.cf32 \
                     --out out/xcorr.cf32 --impl fft --bench 20     # prints timings as JSON
+./build/rfgpu stream --in tests/fixtures/tone.cf32 --taps tests/fixtures/lowpass.f32 \
+                     --out out/fir.cf32 --memory registered --bench 20
+./build/rfgpu doa --in tests/fixtures/array0.cf32,tests/fixtures/array1.cf32,\
+tests/fixtures/array2.cf32,tests/fixtures/array3.cf32 --spacing 1199.169832   # 30 degrees
 ./build/rfgpu --help                                               # every operation and variant
 ```
 
 Samples are `.cf32` files (interleaved little-endian float32 I/Q, the SigMF `cf32_le` layout),
-each with a `.json` sidecar holding the sample rate and ground truth. Filter taps are raw float32
-`.f32` files.
+each with a `.json` sidecar holding the sample rate and ground truth, or SigMF recordings. Filter
+taps are raw float32 `.f32` files.
 
 ### Reproducing the measurements
 
 ```bash
 python tools/gen_bench.py --out out/bench                 # large inputs, not committed
 python tools/make_figures.py collect-times                # re-time every variant
+python tools/make_figures.py collect-sweep                # FIR block-size sweep
+python tools/make_figures.py collect-stream               # streaming configurations
+tools/profile_kernels.sh                                  # Nsight Compute reports
 python tools/make_figures.py plot                         # regenerate docs/figures/
 ```
 
@@ -171,4 +210,5 @@ docs/               roadmap, profiling log, development notes, figures, Nsight r
 | [`docs/PROFILING_LOG.md`](docs/PROFILING_LOG.md) | Every optimization iteration with its measurements |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Status and planned work |
 | [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) | Environment, test suites, profiling setup |
+| [`docs/JETSON.md`](docs/JETSON.md) | Building and measuring on Jetson boards |
 | [`compiler/README.md`](compiler/README.md) | The SigFlow language and compiler |
