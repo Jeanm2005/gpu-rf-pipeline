@@ -403,3 +403,52 @@ def test_bad_channel_count_is_a_usage_error(tmp_path: Path) -> None:
                                  taps_file("channelizer_proto"), "--channels", "0",
                                  "--out", tmp_path / "ch.cf32")
     assert proc.returncode == 2
+
+
+# --- GCC-PHAT and direction finding --------------------------------------------------------
+# Every frequency is normalized to unit magnitude before the inverse FFT, so outputs are at
+# most 1 and the float32 error is of the order of 1e-7 * sqrt(L); atol leaves a wide margin.
+GCC_ATOL = 1e-4
+
+
+@pytest.mark.parametrize("a,b", [("ch0", "ch1"), ("array0", "array3"), ("short", "tone_odd")])
+def test_gcc_phat_matches_reference(tmp_path: Path, a: str, b: str) -> None:
+    out = tmp_path / "gcc.cf32"
+    rfgpu("gcc_phat", "--a", cf32(a), "--b", cf32(b), "--out", out)
+    expected = reference.gcc_phat(reference.read_cf32(cf32(a)), reference.read_cf32(cf32(b)))
+    actual = reference.read_cf32(out)
+    assert actual.shape == expected.shape
+    np.testing.assert_allclose(actual, expected, rtol=0, atol=GCC_ATOL)
+
+
+def test_gcc_phat_peaks_at_the_known_delay(tmp_path: Path) -> None:
+    out = tmp_path / "gcc.cf32"
+    rfgpu("gcc_phat", "--a", cf32("ch0"), "--b", cf32("ch1"), "--out", out)
+    r = reference.read_cf32(out)
+    lags = reference.xcorr_lags(16384, 16384)
+    meta = json.loads((FIXTURES / "ch1.json").read_text())
+    assert lags[np.argmax(np.abs(r))] == meta["true_delay_samples"]
+    # The phase transform whitens the spectrum: the peak stands far above every other lag.
+    peak = np.max(np.abs(r))
+    assert peak > 20 * np.sort(np.abs(r))[-2]
+
+
+def test_gcc_phat_of_zeros_is_exactly_zero(tmp_path: Path) -> None:
+    out = tmp_path / "gcc.cf32"
+    rfgpu("gcc_phat", "--a", cf32("zeros"), "--b", cf32("zeros"), "--out", out)
+    actual = reference.read_cf32(out)
+    assert actual.shape == (2 * 4096 - 1,)
+    assert not np.any(actual)  # also rules out NaN from dividing by a zero magnitude
+
+
+def test_doa_recovers_the_array_angle(tmp_path: Path) -> None:
+    meta = json.loads((FIXTURES / "array0.json").read_text())
+    channels = ",".join(str(cf32(f"array{i}")) for i in range(meta["channels"]))
+    proc = rfgpu("doa", "--in", channels, "--spacing", meta["spacing_m"],
+                 "--speed", meta["speed_m_s"])
+    report = json.loads(proc.stdout)
+    assert report["tdoa_samples"] == [2, 4, 6]
+    assert report["angle_deg"] == pytest.approx(meta["angle_deg"], abs=1e-3)
+    reference_angle = reference.doa([reference.read_cf32(cf32(f"array{i}")) for i in range(4)],
+                                    meta["spacing_m"], meta["speed_m_s"], meta["sample_rate"])
+    assert report["angle_deg"] == pytest.approx(reference_angle, abs=1e-6)

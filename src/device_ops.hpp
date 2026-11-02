@@ -65,10 +65,11 @@ void xcorr_tiled_device(const cf32* a, const cf32* b, cf32* r, int num_a, int nu
 // The cuFFT-based cross-correlation for fixed input lengths. Construction is setup: it
 // allocates four FFT-length work buffers (zero-padded once) and a cuFFT plan. run() enqueues
 // the device-to-device copies into the padded buffers, two forward FFTs, the conjugate
-// multiply, the inverse FFT, and the copy of the num_a + num_b - 1 lags into r.
+// multiply, the inverse FFT, and the copy of the num_a + num_b - 1 lags into r. With `phat`,
+// the multiply also divides each frequency by its magnitude: GCC-PHAT (tools/reference.py).
 class XcorrFft {
 public:
-    XcorrFft(int num_a, int num_b);
+    XcorrFft(int num_a, int num_b, bool phat = false);
     void run(const cf32* a, const cf32* b, cf32* r) const;
     // GPU memory this object holds: work buffers plus the plan's work area.
     std::size_t bytes() const;
@@ -76,6 +77,7 @@ public:
 private:
     int num_a_;
     int num_b_;
+    bool phat_;
     std::size_t fft_len_;
     DeviceBuffer<cf32> padded_a_;
     DeviceBuffer<cf32> padded_b_;

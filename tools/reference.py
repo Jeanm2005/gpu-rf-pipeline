@@ -29,6 +29,18 @@ Output conventions (the GPU kernels must match these exactly):
             frame after frame of M channels, like spectrum. Computed as M polyphase branch sums
             followed by an M-point inverse FFT, unnormalized.
 
+  gcc_phat  Generalized cross-correlation with phase transform. With L the smallest power of
+            two >= Na + Nb - 1 and A, B the L-point FFTs of the zero-padded inputs:
+              W[f] = B[f] conj(A[f]) / |B[f] conj(A[f])|   (0 where the product is 0)
+            and r = IFFT(W), normalized by 1/L, in the same lag order as xcorr. Every frequency
+            gets unit weight, so the peak is sharp, and for b = a delayed by d it is 1 at lag d.
+
+  doa       Direction of arrival for a uniform linear array: channels 0 ... K-1 at spacing d
+            meters, propagation speed c, sample rate fs. tau_i = (argmax_k |gcc_phat(ch0,
+            ch_i)[k]|) / fs is the delay of channel i behind channel 0; the least-squares fit of
+            tau_i = i * d * sin(theta) / c gives theta in degrees, positive when the wave reaches
+            channel 0 first.
+
 Usage (mirrors the rfgpu CLI):
     python tools/reference.py spectrum --in tests/fixtures/tone.cf32 --out out/ref_spectrum.cf32 --nfft 1024
     python tools/reference.py fir      --in tests/fixtures/tone.cf32 --taps tests/fixtures/lowpass.f32 --out out/ref_fir.cf32
@@ -134,6 +146,38 @@ def channelize(x: np.ndarray, taps: np.ndarray, channels: int) -> np.ndarray:
     return np.fft.ifft(u, axis=1) * m
 
 
+def gcc_phat(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    """GCC-PHAT of b against a, len(a) + len(b) - 1 complex128 values in xcorr's lag order."""
+    if len(a) == 0 or len(b) == 0:
+        raise ValueError("both inputs need at least one sample")
+    num_lags = len(a) + len(b) - 1
+    length = 1
+    while length < num_lags:
+        length *= 2
+    cross = np.fft.fft(b, length) * np.conj(np.fft.fft(a, length))
+    mag = np.abs(cross)
+    weighted = np.where(mag > 0, cross / np.where(mag > 0, mag, 1), 0)
+    circular = np.fft.ifft(weighted)
+    # Lags -(Na - 1) ... -1 wrap to the end of the circular result.
+    return np.concatenate([circular[length - (len(a) - 1):], circular[: len(b)]])
+
+
+def tdoa(a: np.ndarray, b: np.ndarray) -> int:
+    """Delay of b behind a in samples: the lag of the GCC-PHAT peak."""
+    r = gcc_phat(a, b)
+    return int(xcorr_lags(len(a), len(b))[np.argmax(np.abs(r))])
+
+
+def doa(channels: list[np.ndarray], spacing: float, speed: float, rate: float) -> float:
+    """Direction of arrival in degrees for a uniform linear array (see the module docstring)."""
+    if len(channels) < 2:
+        raise ValueError("need at least two channels")
+    index = np.arange(1, len(channels))
+    taus = np.array([tdoa(channels[0], ch) for ch in channels[1:]]) / rate
+    slope = float(np.sum(index * taus) / np.sum(index * index))
+    return float(np.degrees(np.arcsin(np.clip(speed * slope / spacing, -1.0, 1.0))))
+
+
 # --- CLI -----------------------------------------------------------------------------------
 
 def main() -> None:
@@ -150,7 +194,7 @@ def main() -> None:
     p.add_argument("--taps", type=Path, required=True)
     p.add_argument("--out", type=Path, required=True)
 
-    for name, text in (("xcorr", "cross-correlation"),):
+    for name, text in (("xcorr", "cross-correlation"), ("gcc_phat", "GCC-PHAT")):
         p = sub.add_parser(name, help=text)
         p.add_argument("--a", type=Path, required=True)
         p.add_argument("--b", type=Path, required=True)
@@ -169,6 +213,8 @@ def main() -> None:
         y = fir(read_cf32(args.inp), read_f32(args.taps))
     elif args.op == "channelize":
         y = channelize(read_cf32(args.inp), read_f32(args.taps), args.channels)
+    elif args.op == "gcc_phat":
+        y = gcc_phat(read_cf32(args.a), read_cf32(args.b))
     else:
         y = xcorr(read_cf32(args.a), read_cf32(args.b))
     write_cf32(args.out, y)

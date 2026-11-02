@@ -213,6 +213,25 @@ __global__ void xcorr_conj_mul_kernel(const cf32* fa, cf32* fb, int n, float sca
     fb[i].im = (vb.im * va.re - vb.re * va.im) * scale;
 }
 
+// GCC-PHAT weighting (phase transform): the same product, divided by its magnitude so every
+// frequency has unit weight, and 0 where the product is 0 (no phase to keep):
+// fb[i] = w / |w| * scale with w = fb[i] * conj(fa[i]).
+__global__ void gcc_phat_weight_kernel(const cf32* fa, cf32* fb, int n, float scale)
+{
+    const int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i >= n) {
+        return;
+    }
+    const cf32 va = fa[i];
+    const cf32 vb = fb[i];
+    const float re = vb.re * va.re + vb.im * va.im;
+    const float im = vb.im * va.re - vb.re * va.im;
+    const float mag = hypotf(re, im);
+    const float w = mag > 0.0f ? scale / mag : 0.0f;
+    fb[i].re = re * w;
+    fb[i].im = im * w;
+}
+
 static std::vector<cf32> xcorr_fft(const std::vector<cf32>& a, const std::vector<cf32>& b,
                                    Bench& bench)
 {
@@ -293,9 +312,10 @@ static std::size_t xcorr_fft_length(std::size_t num_lags)
     return fft_len;
 }
 
-XcorrFft::XcorrFft(int num_a, int num_b)
+XcorrFft::XcorrFft(int num_a, int num_b, bool phat)
     : num_a_(num_a),
       num_b_(num_b),
+      phat_(phat),
       fft_len_(xcorr_fft_length(static_cast<std::size_t>(num_a) + num_b - 1)),
       padded_a_(fft_len_),
       padded_b_(fft_len_),
@@ -341,11 +361,41 @@ void XcorrFft::run(const cf32* a, const cf32* b, cf32* r) const
     // Launch configuration: one thread per frequency bin, 256 threads per block, as xcorr_fft.
     const int n = static_cast<int>(fft_len_);
     const int block = 256;
-    xcorr_conj_mul_kernel<<<(n + block - 1) / block, block>>>(
-        spectrum_a_.get(), spectrum_b_.get(), n, 1.0f / static_cast<float>(fft_len_));
+    const float scale = 1.0f / static_cast<float>(fft_len_);
+    if (phat_) {
+        gcc_phat_weight_kernel<<<(n + block - 1) / block, block>>>(spectrum_a_.get(),
+                                                                   spectrum_b_.get(), n, scale);
+    } else {
+        xcorr_conj_mul_kernel<<<(n + block - 1) / block, block>>>(spectrum_a_.get(),
+                                                                  spectrum_b_.get(), n, scale);
+    }
     CUDA_CHECK(cudaGetLastError());
     fft(spectrum_b_.get(), spectrum_b_.get(), CUFFT_INVERSE);
     copy(r, spectrum_b_.get(), num_lags);
+}
+
+// --- GCC-PHAT --------------------------------------------------------------------------------
+
+std::vector<cf32> gcc_phat_cuda(const std::vector<cf32>& a, const std::vector<cf32>& b,
+                                Bench& bench)
+{
+    const std::size_t num_lags = a.size() + b.size() - 1;
+    std::vector<cf32> r(num_lags);
+
+    // One-time setup, outside the timed region: inputs, output, and the FFT work buffers.
+    DeviceBuffer<cf32> d_a(a.size());
+    DeviceBuffer<cf32> d_b(b.size());
+    DeviceBuffer<cf32> d_r(num_lags);
+    const XcorrFft gcc(static_cast<int>(a.size()), static_cast<int>(b.size()), true);
+
+    bench.run(
+        [&] {
+            d_a.upload(a.data(), a.size());
+            d_b.upload(b.data(), b.size());
+        },
+        [&] { gcc.run(d_a.get(), d_b.get(), d_r.get()); },
+        [&] { d_r.download(r.data(), r.size()); });
+    return r;
 }
 
 // --- implementation table ------------------------------------------------------------------

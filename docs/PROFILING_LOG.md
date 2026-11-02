@@ -522,6 +522,27 @@ inverse cuFFT call (`src/channelize.cu`). Measured on 2026-11-02, three runs of 
 - What I changed and why: new operation (Stage 3). Output matches the float64 reference and
   its brute-force definition (`tests/test_reference.py`, `tests/test_pipeline.py`).
 
+## Direction finding — GCC-PHAT, first measurement (`rfgpu gcc_phat`, `rfgpu doa`)
+
+GCC-PHAT reuses the cuFFT cross-correlation (`XcorrFft`) with one change: the element-wise
+step divides every frequency by its magnitude (`gcc_phat_weight_kernel` in `src/xcorr.cu`).
+Measured on 2026-11-02, one run of `--bench 20` each.
+
+- GPU / driver / CUDA version: NVIDIA GeForce RTX 5080 Laptop GPU (compute capability 12.0) /
+  617.42 / 13.4
+- Input size and parameters: `bench_ch0.cf32` and `bench_ch1.cf32`, 2^18 samples each.
+- Kernel time: 0.56 ms for `gcc_phat` against 0.48 ms for `xcorr --impl fft` on the same
+  inputs: the phase transform's square root and division, and the device-to-device copies of
+  the device-pointer path, cost about 0.08 ms.
+- Accuracy: the peak recovers the fixtures' known delays exactly (37 samples on `ch0`/`ch1`;
+  2, 4, and 6 samples across the four-receiver array), and `rfgpu doa` returns the array's
+  30.000° to within 1e-9° (`tests/test_pipeline.py`). On `ch0`/`ch1` the GCC-PHAT peak stands
+  more than 20× above every other lag.
+- Achieved memory bandwidth, occupancy, top bottleneck: not profiled; the weighting kernel is
+  element-wise like `xcorr_conj_mul_kernel`, which Nsight Compute shows at 66 % of memory
+  throughput.
+- What I changed and why: new operation (Stage 3).
+
 ## SigFlow buffer reuse — `two_channel.sf` — CUDA backend, reuse against `--no-reuse`
 
 Measures the phase B memory plan on the GPU. The phase C CUDA backend (`sigflowc --emit=cuda`)

@@ -221,3 +221,32 @@ def test_channelize_one_channel_is_the_fir_decimated_by_one() -> None:
     taps = reference.read_f32(FIXTURES / "lowpass.f32")
     np.testing.assert_allclose(reference.channelize(x, taps, 1).ravel(), reference.fir(x, taps),
                                atol=1e-10)
+
+
+# --- gcc_phat and doa ----------------------------------------------------------------------
+
+def test_gcc_phat_is_xcorr_of_whitened_spectra() -> None:
+    a = random_complex(31, 50)
+    b = random_complex(32, 70)
+    length = 128  # smallest power of two >= 50 + 70 - 1
+    cross = np.fft.fft(b, length) * np.conj(np.fft.fft(a, length))
+    circular = np.fft.ifft(cross / np.abs(cross))
+    lags = reference.xcorr_lags(50, 70)
+    np.testing.assert_allclose(reference.gcc_phat(a, b), circular[lags % length], atol=1e-12)
+
+
+def test_gcc_phat_of_a_pure_delay_is_one_at_that_lag() -> None:
+    a = random_complex(33, 256)
+    b = np.roll(a, 9)  # circular: every frequency has exactly the delay's phase
+    r = reference.gcc_phat(a, b)
+    lags = reference.xcorr_lags(256, 256)
+    peak = np.argmax(np.abs(r))
+    assert lags[peak] == 9
+
+
+def test_doa_recovers_the_array_fixture_angle() -> None:
+    meta = json.loads((FIXTURES / "array0.json").read_text())
+    channels = [reference.read_cf32(FIXTURES / f"array{i}.cf32") for i in range(meta["channels"])]
+    assert [reference.tdoa(channels[0], ch) for ch in channels[1:]] == [2, 4, 6]
+    angle = reference.doa(channels, meta["spacing_m"], meta["speed_m_s"], meta["sample_rate"])
+    assert angle == pytest.approx(meta["angle_deg"], abs=1e-9)

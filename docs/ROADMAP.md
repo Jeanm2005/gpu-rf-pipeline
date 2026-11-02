@@ -46,9 +46,9 @@ In priority order; the order can change.
 2. **Channelizer.** Done in `rfgpu channelize`: a critically sampled polyphase filter bank
    (branch-sum kernel and one batched inverse cuFFT call), 1.05 ms for 2^24 samples into 16
    channels.
-3. **Direction finding.** GCC-PHAT (generalized cross-correlation with phase transform) for TDOA
-   (time difference of arrival) across channels, then DOA (direction of arrival) estimation for
-   a simulated antenna array, with matching SigFlow operations.
+3. **Direction finding.** Done in `rfgpu gcc_phat` (GCC-PHAT, generalized cross-correlation
+   with phase transform, for TDOA, time difference of arrival) and `rfgpu doa` (direction of
+   arrival for a uniform linear array), checked on a simulated four-receiver array fixture.
 4. **Real recordings.** Public SigMF datasets in addition to synthetic data.
 5. **Jetson portability.** Unified memory, and the power and clock limits of embedded GPUs.
 6. **Parser fuzzing.** A libFuzzer target for the SigFlow lexer and parser.

@@ -30,6 +30,16 @@ REF_NFFT = 1024  # tones are placed on exact bins of this FFT size
 # Two-channel capture: channel B is channel A delayed by this many samples.
 TRUE_DELAY_SAMPLES = 37
 
+# Uniform linear array for direction finding: 4 receivers ARRAY_SPACING_M apart, a plane wave
+# from ARRAY_ANGLE_DEG off broadside (positive: it reaches receiver 0 first). The geometry is
+# chosen so the delay between neighbours is a whole number of samples (fractional delays are
+# not modelled): spacing * sin(angle) / c = ARRAY_DELAY_SAMPLES / SAMPLE_RATE.
+SPEED_OF_LIGHT = 299_792_458.0  # m/s
+ARRAY_CHANNELS = 4
+ARRAY_DELAY_SAMPLES = 2
+ARRAY_ANGLE_DEG = 30.0
+ARRAY_SPACING_M = SPEED_OF_LIGHT * ARRAY_DELAY_SAMPLES / SAMPLE_RATE / 0.5  # sin(30 deg) = 0.5
+
 
 def complex_noise(rng: np.random.Generator, n: int, std: float) -> np.ndarray:
     """Circular complex Gaussian noise with total standard deviation `std`.
@@ -182,6 +192,26 @@ def generate(out: Path) -> list[str]:
     write_sigmf_ci16(out, "tone_ci16", 0.5 * x / np.max(np.abs(x)),
                      "tone_odd at half of full scale, 16-bit integer samples")
     written.append("tone_ci16")
+
+    # --- Antenna array: one source seen by ARRAY_CHANNELS receivers --------------------------
+    # Receiver i sees the source delayed by i * ARRAY_DELAY_SAMPLES, plus its own noise, as
+    # widely spaced receivers of a TDOA system would.
+    seed = 3001
+    rng = np.random.default_rng(seed)
+    n = 8192
+    source = complex_noise(rng, n, std=1.0)
+    for i in range(ARRAY_CHANNELS):
+        x = delay(source, i * ARRAY_DELAY_SAMPLES) + complex_noise(rng, n, std=0.3)
+        write_cf32(out, f"array{i}", x, {
+            "seed": seed,
+            "description": "uniform linear array, plane wave from angle_deg",
+            "channel": i, "channels": ARRAY_CHANNELS,
+            "spacing_m": ARRAY_SPACING_M, "speed_m_s": SPEED_OF_LIGHT,
+            "angle_deg": ARRAY_ANGLE_DEG,
+            "delay_samples": i * ARRAY_DELAY_SAMPLES,
+            "delay_convention": "array{i}[n] = source[n - i * 2], zero-filled",
+        })
+        written.append(f"array{i}")
 
     # --- Filter taps -------------------------------------------------------------------------
     # 63-tap lowpass, cutoff at 0.2 of Nyquist: passes bin 40, rejects bin -300.

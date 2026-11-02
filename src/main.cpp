@@ -5,6 +5,8 @@
 //   rfgpu xcorr     --a a.cf32 --b b.cf32 --out r.cf32 [--impl naive]
 //   rfgpu magnitude --in x.cf32 --out mag.f32
 //   rfgpu channelize --in x.cf32 --taps h.f32 --channels M --out z.cf32
+//   rfgpu gcc_phat  --a a.cf32 --b b.cf32 --out r.cf32
+//   rfgpu doa       --in ch0.cf32,ch1.cf32,... --spacing METERS [--speed M_PER_S]
 //   rfgpu stream    --in x.cf32 --taps h.f32 --out y.cf32 [--chunk N] [--depth D]
 //   rfgpu info
 //
@@ -16,6 +18,7 @@
 #include "ops.hpp"
 #include "stream.hpp"
 
+#include <algorithm>
 #include <climits>
 #include <cmath>
 #include <cstdio>
@@ -64,6 +67,10 @@ void print_usage()
         "  rfgpu magnitude --in X.cf32 --out OUT.f32\n"
         "  rfgpu channelize --in X.cf32 --taps H.f32 --channels M --out OUT.cf32\n"
         "                  polyphase filter bank: M channels, each decimated by M\n"
+        "  rfgpu gcc_phat  --a A.cf32 --b B.cf32 --out OUT.cf32   cross-correlation with the\n"
+        "                  phase transform (unit weight per frequency), lags as xcorr\n"
+        "  rfgpu doa       --in CH0,CH1,... --spacing M [--speed M/S] [--rate HZ]\n"
+        "                  direction of arrival for a uniform linear array, as JSON\n"
         "  rfgpu stream    --in X.cf32 --taps H.f32 --out OUT.cf32 [--impl NAME] [--chunk N]\n"
         "                  [--depth D] [--memory copy|registered|zero-copy] [--rate HZ]\n"
         "                  FIR in chunks through a ring of D pinned buffers and CUDA streams\n"
@@ -324,6 +331,90 @@ int run_channelize(int argc, char** argv)
     return 0;
 }
 
+int run_gcc_phat(int argc, char** argv)
+{
+    const Args args(argc, argv, {"--a", "--b", "--out", "--bench", "--warmup"});
+    args.required("--out");
+    Bench bench(bench_config(args));
+    const std::vector<cf32> a = read_cf32(args.required("--a"));
+    const std::vector<cf32> b = read_cf32(args.required("--b"));
+    if (a.empty() || b.empty()) {
+        throw std::runtime_error("gcc_phat needs at least one sample in each input");
+    }
+    require_int_range(a.size() + b.size(), "gcc_phat output");
+    finish(args, "gcc_phat", "fft", a.size() + b.size(), gcc_phat_cuda(a, b, bench), bench);
+    return 0;
+}
+
+// Direction of arrival for a uniform linear array (tools/reference.py, doa): GCC-PHAT of every
+// channel against channel 0 on the GPU, the peak lag of each on the host, and the
+// least-squares fit of the delays to the array geometry. Prints one JSON object.
+int run_doa(int argc, char** argv)
+{
+    const Args args(argc, argv, {"--in", "--spacing", "--speed", "--rate"});
+    std::vector<std::string> paths;
+    {
+        const std::string list = args.required("--in");
+        std::size_t start = 0;
+        while (start <= list.size()) {
+            const std::size_t comma = list.find(',', start);
+            const std::size_t end = comma == std::string::npos ? list.size() : comma;
+            paths.push_back(list.substr(start, end - start));
+            start = end + 1;
+        }
+    }
+    if (paths.size() < 2) {
+        throw UsageError("--in needs at least two comma-separated channel files");
+    }
+    const double spacing = std::stod(args.required("--spacing"));
+    const double speed = std::stod(args.optional("--speed", "299792458"));
+    double rate = sample_rate(paths[0]);
+    if (args.has("--rate")) {
+        rate = std::stod(args.required("--rate"));
+    }
+    if (!(spacing > 0.0) || !(speed > 0.0) || !(rate > 0.0)) {
+        throw UsageError("--spacing, --speed, and the sample rate (--rate, or the first "
+                         "channel's metadata) must be positive");
+    }
+
+    const std::vector<cf32> ref = read_cf32(paths[0]);
+    Bench bench(BenchConfig{});
+    std::vector<int> tdoa;
+    double sum_it = 0.0;
+    double sum_ii = 0.0;
+    for (std::size_t i = 1; i < paths.size(); ++i) {
+        const std::vector<cf32> ch = read_cf32(paths[i]);
+        if (ref.empty() || ch.empty()) {
+            throw std::runtime_error("doa: every channel needs at least one sample");
+        }
+        const std::vector<cf32> r = gcc_phat_cuda(ref, ch, bench);
+        std::size_t best = 0;
+        float best_mag = -1.0f;
+        for (std::size_t k = 0; k < r.size(); ++k) {
+            const float mag = std::hypot(r[k].re, r[k].im);
+            if (mag > best_mag) {
+                best_mag = mag;
+                best = k;
+            }
+        }
+        const int lag = static_cast<int>(best) - static_cast<int>(ref.size() - 1);
+        tdoa.push_back(lag);
+        sum_it += static_cast<double>(i) * lag / rate;
+        sum_ii += static_cast<double>(i * i);
+    }
+    const double sine = std::clamp(speed * (sum_it / sum_ii) / spacing, -1.0, 1.0);
+    const double angle = std::asin(sine) * 180.0 / 3.14159265358979323846;
+
+    std::string lags;
+    for (int lag : tdoa) {
+        lags += (lags.empty() ? "" : ", ") + std::to_string(lag);
+    }
+    std::printf("{\"op\": \"doa\", \"channels\": %zu, \"sample_rate\": %.1f, \"spacing_m\": %.6f, "
+                "\"speed_m_s\": %.1f, \"tdoa_samples\": [%s], \"angle_deg\": %.9f}\n",
+                paths.size(), rate, spacing, speed, lags.c_str(), angle);
+    return 0;
+}
+
 // Streaming FIR (stream.hpp). Without --bench: one pass, written to --out. With --bench N: W
 // untimed passes, then N timed ones, reported as JSON with the throughput against --rate (or
 // the sample rate from the input's metadata, when it has any).
@@ -439,6 +530,8 @@ int main(int argc, char** argv)
         if (op == "xcorr") return run_xcorr(argc, argv);
         if (op == "stream") return run_stream(argc, argv);
         if (op == "channelize") return run_channelize(argc, argv);
+        if (op == "gcc_phat") return run_gcc_phat(argc, argv);
+        if (op == "doa") return run_doa(argc, argv);
         if (op == "info") return run_info(argc, argv);
         if (op == "--help" || op == "-h" || op == "help") {
             print_usage();

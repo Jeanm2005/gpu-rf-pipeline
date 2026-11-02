@@ -46,3 +46,7 @@ using XcorrFn = std::vector<cf32> (*)(const std::vector<cf32>& a, const std::vec
                                       Bench& bench);
 const std::vector<Impl<XcorrFn>>& xcorr_impls();  // first entry is the default
 
+// xcorr.cu. GCC-PHAT (tools/reference.py, gcc_phat): the cuFFT cross-correlation with every
+// frequency weighted to unit magnitude. Same length and lag order as xcorr.
+std::vector<cf32> gcc_phat_cuda(const std::vector<cf32>& a, const std::vector<cf32>& b,
+                                Bench& bench);
