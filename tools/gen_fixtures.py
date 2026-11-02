@@ -191,6 +191,11 @@ def generate(out: Path) -> list[str]:
     # Edge case: a filter longer than one shared-memory tile (and than a 1024-thread block).
     write_taps(out, "lowpass_long", signal.firwin(1025, cutoff),
                {"design": "scipy.signal.firwin", "cutoff_fraction_of_nyquist": cutoff})
+    # Prototype low-pass for a 16-channel polyphase channelizer: 8 taps per branch, cutoff at
+    # half a channel width on each side of DC.
+    write_taps(out, "channelizer_proto", signal.firwin(16 * 8, 1 / 16),
+               {"design": "scipy.signal.firwin", "channels": 16, "taps_per_branch": 8})
+    written.append("channelizer_proto")
     # Single tap of 1.0: output must equal input. Useful when debugging indexing.
     write_taps(out, "identity", np.array([1.0]), {"design": "identity"})
     written += ["lowpass", "lowpass_long", "identity"]

@@ -356,3 +356,50 @@ def test_bad_stream_options_are_usage_errors(tmp_path: Path, args: list[str]) ->
                                  "--out", tmp_path / "y.cf32", *args)
     assert proc.returncode == 2
 
+
+# --- Channelizer ---------------------------------------------------------------------------
+# Each output sums at most ceil(L / M) float32 products per branch and then an M-point FFT, so
+# the error is of the same order as the FIR's (outputs of order 1 to 10 here).
+CHANNELIZE_RTOL = 1e-5
+CHANNELIZE_ATOL = 1e-4
+
+
+@pytest.mark.parametrize("name,taps,channels", [
+    ("tone", "channelizer_proto", 16),
+    ("tone_odd", "channelizer_proto", 16),   # length not a multiple of M: partial last frame
+    ("tone", "lowpass_long", 64),            # taps not a multiple of M
+    ("short", "lowpass", 4),                 # input shorter than the filter
+    ("tone_odd", "identity", 1),             # one channel, one tap: the input itself
+])
+def test_channelize_matches_reference(tmp_path: Path, name: str, taps: str,
+                                      channels: int) -> None:
+    out = tmp_path / "ch.cf32"
+    rfgpu("channelize", "--in", cf32(name), "--taps", taps_file(taps), "--channels", channels,
+          "--out", out)
+    expected = reference.channelize(reference.read_cf32(cf32(name)),
+                                    reference.read_f32(taps_file(taps)), channels).ravel()
+    actual = reference.read_cf32(out)
+    assert actual.shape == expected.shape
+    np.testing.assert_allclose(actual, expected, rtol=CHANNELIZE_RTOL, atol=CHANNELIZE_ATOL)
+
+
+def test_channelize_puts_a_tone_in_its_channel(tmp_path: Path) -> None:
+    # A tone at the centre of channel 3 of 16: after the prototype low-pass, that channel holds
+    # almost all of the power and its magnitude is the filter's DC gain (about 1).
+    n = np.arange(16 * 512)
+    x = np.exp(2j * np.pi * 3 * n / 16)
+    reference.write_cf32(tmp_path / "x.cf32", x)
+    rfgpu("channelize", "--in", tmp_path / "x.cf32", "--taps", taps_file("channelizer_proto"),
+          "--channels", 16, "--out", tmp_path / "ch.cf32")
+    z = reference.read_cf32(tmp_path / "ch.cf32").reshape(-1, 16)[16:]  # past the start-up
+    power = np.mean(np.abs(z) ** 2, axis=0)
+    assert np.argmax(power) == 3
+    assert power[3] > 1000 * np.max(np.delete(power, 3))
+    np.testing.assert_allclose(np.abs(z[:, 3]), 1.0, atol=0.02)
+
+
+def test_bad_channel_count_is_a_usage_error(tmp_path: Path) -> None:
+    proc = run_expecting_failure("channelize", "--in", cf32("tone"), "--taps",
+                                 taps_file("channelizer_proto"), "--channels", "0",
+                                 "--out", tmp_path / "ch.cf32")
+    assert proc.returncode == 2

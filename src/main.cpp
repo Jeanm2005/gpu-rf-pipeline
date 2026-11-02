@@ -4,6 +4,7 @@
 //   rfgpu fir       --in x.cf32 --taps h.f32 --out y.cf32 [--impl naive] [--block 256]
 //   rfgpu xcorr     --a a.cf32 --b b.cf32 --out r.cf32 [--impl naive]
 //   rfgpu magnitude --in x.cf32 --out mag.f32
+//   rfgpu channelize --in x.cf32 --taps h.f32 --channels M --out z.cf32
 //   rfgpu stream    --in x.cf32 --taps h.f32 --out y.cf32 [--chunk N] [--depth D]
 //   rfgpu info
 //
@@ -61,6 +62,8 @@ void print_usage()
         "  rfgpu fir       --in X.cf32 --taps H.f32 --out OUT.cf32 [--impl NAME] [--block B]\n"
         "  rfgpu xcorr     --a A.cf32 --b B.cf32 --out OUT.cf32 [--impl NAME]\n"
         "  rfgpu magnitude --in X.cf32 --out OUT.f32\n"
+        "  rfgpu channelize --in X.cf32 --taps H.f32 --channels M --out OUT.cf32\n"
+        "                  polyphase filter bank: M channels, each decimated by M\n"
         "  rfgpu stream    --in X.cf32 --taps H.f32 --out OUT.cf32 [--impl NAME] [--chunk N]\n"
         "                  [--depth D] [--memory copy|registered|zero-copy] [--rate HZ]\n"
         "                  FIR in chunks through a ring of D pinned buffers and CUDA streams\n"
@@ -299,6 +302,28 @@ int run_xcorr(int argc, char** argv)
     return 0;
 }
 
+int run_channelize(int argc, char** argv)
+{
+    const Args args(argc, argv, {"--in", "--taps", "--channels", "--out", "--bench", "--warmup"});
+    args.required("--out");
+    const int channels = args.integer("--channels", 0, 1);
+    if (!args.has("--channels")) {
+        throw UsageError("missing required option --channels");
+    }
+    Bench bench(bench_config(args));
+
+    const std::vector<cf32> x = read_cf32(args.required("--in"));
+    const std::vector<float> taps = read_f32(args.required("--taps"));
+    if (taps.empty()) {
+        throw std::runtime_error(args.required("--taps") + ": no taps");
+    }
+    require_int_range(x.size() + static_cast<std::size_t>(channels), "padded channelizer input");
+    require_int_range(taps.size(), "tap array");
+    finish(args, "channelize", "polyphase", x.size(),
+           channelize_cuda(x, taps, channels, bench), bench);
+    return 0;
+}
+
 // Streaming FIR (stream.hpp). Without --bench: one pass, written to --out. With --bench N: W
 // untimed passes, then N timed ones, reported as JSON with the throughput against --rate (or
 // the sample rate from the input's metadata, when it has any).
@@ -413,6 +438,7 @@ int main(int argc, char** argv)
         if (op == "fir") return run_fir(argc, argv);
         if (op == "xcorr") return run_xcorr(argc, argv);
         if (op == "stream") return run_stream(argc, argv);
+        if (op == "channelize") return run_channelize(argc, argv);
         if (op == "info") return run_info(argc, argv);
         if (op == "--help" || op == "-h" || op == "help") {
             print_usage();

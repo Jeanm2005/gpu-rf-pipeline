@@ -191,3 +191,33 @@ def test_cli_writes_the_same_result_as_the_function(tmp_path: Path) -> None:
                              reference.read_f32(FIXTURES / "lowpass.f32"))
     # The file holds float32, so allow float32 rounding of values of order 1.
     np.testing.assert_allclose(reference.read_cf32(out), expected, rtol=1e-6, atol=1e-6)
+
+
+# --- channelize ----------------------------------------------------------------------------
+
+def brute_force_channelize(x: np.ndarray, h: np.ndarray, m: int) -> np.ndarray:
+    frames = -(-len(x) // m)
+    z = np.zeros((frames, m), dtype=np.complex128)
+    for t in range(frames):
+        for k in range(m):
+            z[t, k] = sum(h[l] * x[t * m - l] * np.exp(2j * np.pi * k * l / m)
+                          for l in range(len(h)) if t * m - l >= 0)
+    return z
+
+
+@pytest.mark.parametrize("num_samples,num_taps,channels", [
+    (100, 37, 4), (64, 16, 16), (7, 63, 4), (33, 1, 1), (50, 24, 8),
+])
+def test_channelize_matches_brute_force(num_samples: int, num_taps: int, channels: int) -> None:
+    rng = np.random.default_rng(num_samples + num_taps + channels)
+    x = rng.standard_normal(num_samples) + 1j * rng.standard_normal(num_samples)
+    h = rng.standard_normal(num_taps)
+    np.testing.assert_allclose(reference.channelize(x, h, channels),
+                               brute_force_channelize(x, h, channels), atol=1e-10)
+
+
+def test_channelize_one_channel_is_the_fir_decimated_by_one() -> None:
+    x = reference.read_cf32(FIXTURES / "tone_odd.cf32")
+    taps = reference.read_f32(FIXTURES / "lowpass.f32")
+    np.testing.assert_allclose(reference.channelize(x, taps, 1).ravel(), reference.fir(x, taps),
+                               atol=1e-10)

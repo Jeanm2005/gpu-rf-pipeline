@@ -1,0 +1,8 @@
+{
+  "datatype": "rf32_le",
+  "num_taps": 128,
+  "generator": "gpu-rf-pipeline/tools/gen_fixtures.py",
+  "design": "scipy.signal.firwin",
+  "channels": 16,
+  "taps_per_branch": 8
+}

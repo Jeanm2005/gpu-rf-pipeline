@@ -35,8 +35,14 @@ using FirFn = std::vector<cf32> (*)(const std::vector<cf32>& x, const std::vecto
 constexpr int kDefaultFirBlock = 256;
 const std::vector<Impl<FirFn>>& fir_impls();  // first entry is the default
 
+// channelize.cu. Polyphase channelizer: ceil(x.size() / channels) frames of `channels`
+// channel samples, z[t][k] = sum_l taps[l] * x[t*M - l] * exp(+2j*pi*k*l / M) (M = channels).
+std::vector<cf32> channelize_cuda(const std::vector<cf32>& x, const std::vector<float>& taps,
+                                  int channels, Bench& bench);
+
 // xcorr.cu. r[k] = sum_n b[n + k] * conj(a[n]) for k = -(Na - 1) ... Nb - 1.
 // Output length Na + Nb - 1; index i holds lag i - (Na - 1).
 using XcorrFn = std::vector<cf32> (*)(const std::vector<cf32>& a, const std::vector<cf32>& b,
                                       Bench& bench);
 const std::vector<Impl<XcorrFn>>& xcorr_impls();  // first entry is the default
+

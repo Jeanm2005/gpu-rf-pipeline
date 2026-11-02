@@ -34,6 +34,7 @@ add_library(rfgpu_ops STATIC
   src/fused.cu
   src/xcorr.cu
   src/stream.cu
+  src/channelize.cu
 )
 target_include_directories(rfgpu_ops PUBLIC src)
 target_link_libraries(rfgpu_ops PUBLIC CUDA::cudart CUDA::cufft)

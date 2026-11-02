@@ -21,6 +21,14 @@ Output conventions (the GPU kernels must match these exactly):
             output index i holds lag i - (Na - 1). If b is a delayed by d samples, |r| peaks
             at lag +d.
 
+  channelize  Critically sampled polyphase filter bank with M channels and a prototype
+            low-pass h (length L, taken as zero past its end):
+              z[t][k] = sum_l h[l] * x[t*M - l] * exp(+2j*pi*k*l / M),  x[m] = 0 for m < 0
+            for t = 0 ... ceil(N / M) - 1 and k = 0 ... M - 1. Channel k is the band around
+            k * fs / M (k > M / 2 are the negative frequencies), decimated to fs / M. Output:
+            frame after frame of M channels, like spectrum. Computed as M polyphase branch sums
+            followed by an M-point inverse FFT, unnormalized.
+
 Usage (mirrors the rfgpu CLI):
     python tools/reference.py spectrum --in tests/fixtures/tone.cf32 --out out/ref_spectrum.cf32 --nfft 1024
     python tools/reference.py fir      --in tests/fixtures/tone.cf32 --taps tests/fixtures/lowpass.f32 --out out/ref_fir.cf32
@@ -105,6 +113,27 @@ def xcorr_lags(num_a: int, num_b: int) -> np.ndarray:
     return np.arange(-(num_a - 1), num_b)
 
 
+def channelize(x: np.ndarray, taps: np.ndarray, channels: int) -> np.ndarray:
+    """Polyphase channelizer. Returns shape (ceil(len(x) / channels), channels), complex128."""
+    m = channels
+    if m < 1 or len(taps) < 1:
+        raise ValueError("need at least one channel and one tap")
+    frames = -(-len(x) // m)
+    branches = -(-len(taps) // m)
+    h = np.zeros(branches * m)
+    h[: len(taps)] = taps
+    # Padded so x[t*M - p*M - m] is a plain index for every t, p, m: index + pad.
+    pad = branches * m
+    xp = np.concatenate([np.zeros(pad, dtype=np.complex128), x.astype(np.complex128)])
+    u = np.zeros((frames, m), dtype=np.complex128)
+    t = np.arange(frames)
+    for p in range(branches):
+        for branch in range(m):
+            u[:, branch] += h[p * m + branch] * xp[pad + t * m - p * m - branch]
+    # sum_m u[m] exp(+2j pi k m / M) is M * ifft.
+    return np.fft.ifft(u, axis=1) * m
+
+
 # --- CLI -----------------------------------------------------------------------------------
 
 def main() -> None:
@@ -121,9 +150,16 @@ def main() -> None:
     p.add_argument("--taps", type=Path, required=True)
     p.add_argument("--out", type=Path, required=True)
 
-    p = sub.add_parser("xcorr", help="cross-correlation")
-    p.add_argument("--a", type=Path, required=True)
-    p.add_argument("--b", type=Path, required=True)
+    for name, text in (("xcorr", "cross-correlation"),):
+        p = sub.add_parser(name, help=text)
+        p.add_argument("--a", type=Path, required=True)
+        p.add_argument("--b", type=Path, required=True)
+        p.add_argument("--out", type=Path, required=True)
+
+    p = sub.add_parser("channelize", help="polyphase channelizer")
+    p.add_argument("--in", dest="inp", type=Path, required=True)
+    p.add_argument("--taps", type=Path, required=True)
+    p.add_argument("--channels", type=int, required=True)
     p.add_argument("--out", type=Path, required=True)
 
     args = parser.parse_args()
@@ -131,6 +167,8 @@ def main() -> None:
         y = spectrum(read_cf32(args.inp), args.nfft)
     elif args.op == "fir":
         y = fir(read_cf32(args.inp), read_f32(args.taps))
+    elif args.op == "channelize":
+        y = channelize(read_cf32(args.inp), read_f32(args.taps), args.channels)
     else:
         y = xcorr(read_cf32(args.a), read_cf32(args.b))
     write_cf32(args.out, y)

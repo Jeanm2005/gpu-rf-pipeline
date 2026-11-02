@@ -85,6 +85,17 @@ private:
     std::size_t plan_bytes_ = 0;
 };
 
+// --- channelizer (channelize.cu) ----------------------------------------------------------
+
+// Frames of `channels` outputs for num_samples inputs: ceil(num_samples / channels).
+int channelize_frames(int num_samples, int channels);
+
+// The polyphase channelizer into `out` (channelize_frames() * channels samples), with `plan` a
+// batched FftPlan of `channels` points times channelize_frames() frames, run as an inverse
+// transform in place. `taps` in GPU memory.
+void channelize_device(cufftHandle plan, const cf32* x, const float* taps, cf32* out,
+                       int num_samples, int channels, int num_taps);
+
 // --- spectrum (spectrum.cu) ----------------------------------------------------------------
 
 // The batched forward FFT `plan` (an FftPlan of nfft points times num_frames) from `in` to

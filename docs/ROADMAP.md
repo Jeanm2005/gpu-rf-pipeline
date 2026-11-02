@@ -43,7 +43,9 @@ In priority order; the order can change.
    FIR, with copy, registered (page-locked in place), and zero-copy memory modes. Up to
    1061 MS/s end to end, 2.5× the one-shot path (profiling log, "Streaming"). Open: streaming
    execution in `sigflowc`.
-2. **Channelizer.** A polyphase filter bank that splits a wideband capture into sub-channels.
+2. **Channelizer.** Done in `rfgpu channelize`: a critically sampled polyphase filter bank
+   (branch-sum kernel and one batched inverse cuFFT call), 1.05 ms for 2^24 samples into 16
+   channels.
 3. **Direction finding.** GCC-PHAT (generalized cross-correlation with phase transform) for TDOA
    (time difference of arrival) across channels, then DOA (direction of arrival) estimation for
    a simulated antenna array, with matching SigFlow operations.

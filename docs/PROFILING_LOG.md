@@ -503,6 +503,25 @@ how much of the copying overlapping and pinned memory can remove. Measured on 20
   variant, chunk size, depth, and memory mode (`tests/test_pipeline.py`).
 - Data: `docs/results/stream.csv`.
 
+## Channelizer — first measurement (`rfgpu channelize`)
+
+Stage 3's polyphase filter bank: one kernel for the M branch sums, then one batched M-point
+inverse cuFFT call (`src/channelize.cu`). Measured on 2026-11-02, three runs of `--bench 20`
+(a single short pass, to keep the machine free for other work).
+
+- GPU / driver / CUDA version: NVIDIA GeForce RTX 5080 Laptop GPU (compute capability 12.0) /
+  617.42 / 13.4
+- Input size and parameters: `bench_tone.cf32`, 2^24 samples, 16 channels,
+  `channelizer_proto.f32` (128 taps, 8 per branch).
+- Kernel time: 1.04 to 1.07 ms (mean of 20 runs, three runs). For scale, `rfgpu spectrum
+  --nfft 16` on the same input, the same FFTs without the filter, takes 0.93 ms: the branch
+  sums cost about 13 % on top of the transform. Transfers: 24 to 30 ms up, 31 to 35 ms down.
+- Achieved memory bandwidth, occupancy, top bottleneck: not profiled. With 8 taps per branch
+  the branch kernel does 8 multiply-adds per output, so like `magnitude` it should be bound by
+  memory traffic, not arithmetic; confirm with Nsight Compute before optimizing it.
+- What I changed and why: new operation (Stage 3). Output matches the float64 reference and
+  its brute-force definition (`tests/test_reference.py`, `tests/test_pipeline.py`).
+
 ## SigFlow buffer reuse — `two_channel.sf` — CUDA backend, reuse against `--no-reuse`
 
 Measures the phase B memory plan on the GPU. The phase C CUDA backend (`sigflowc --emit=cuda`)
